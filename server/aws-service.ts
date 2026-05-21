@@ -259,6 +259,9 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
 export async function startAwsBackgroundSync() {
   console.log("AWS Background sync service started...");
   
+  // Wait 30 seconds after startup before first sync to reduce memory pressure
+  await new Promise(r => setTimeout(r, 30 * 1000));
+  
   // One-time cleanup of existing noise events to clear the UI
   try {
     console.log("Cleaning up existing AWS bot noise events...");
@@ -288,3 +291,4 @@ export async function startAwsBackgroundSync() {
     await new Promise(r => setTimeout(r, 10 * 60 * 1000));
   }
 }
+
