@@ -48,16 +48,22 @@ export default function ForwardPage() {
   const [botToken, setBotToken] = useState("");
   const [postLink, setPostLink] = useState("");
   const [intervalVal, setIntervalVal] = useState(1);
+  const isInitializedRef = React.useRef(false);
 
   // 1. Fetch forward configurations
   const { data: config, isLoading: isConfigLoading } = useQuery<ForwardConfig>({
     queryKey: ["/api/forward/config"],
-    onSuccess: (data) => {
-      setBotToken(data.botToken);
-      setPostLink(data.postLink);
-      setIntervalVal(data.interval);
-    }
   });
+
+  // Sync loaded configuration values with local form inputs on initial load only
+  useEffect(() => {
+    if (config && !isInitializedRef.current) {
+      setBotToken(config.botToken || "");
+      setPostLink(config.postLink || "");
+      setIntervalVal(config.interval || 1);
+      isInitializedRef.current = true;
+    }
+  }, [config]);
 
   // 2. Fetch detected groups
   const { data: serverGroups = [], isLoading: isGroupsLoading } = useQuery<ForwardGroup[]>({
@@ -103,6 +109,9 @@ export default function ForwardPage() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/forward/config"], data);
+      setBotToken(data.botToken || "");
+      setPostLink(data.postLink || "");
+      setIntervalVal(data.interval || 1);
       toast({
         title: "Configuration Saved",
         description: "Auto Forward configuration updated successfully.",
