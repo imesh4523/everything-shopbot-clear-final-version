@@ -195,6 +195,59 @@ async function performForwardJob() {
   await saveDetectedGroups(updatedGroups);
 }
 
+/**
+ * Manually tests message forwarding.
+ */
+export async function testForwardMessage(): Promise<{ success: boolean; totalGroups: number; sentCount: number; errors: string[] }> {
+  const postLinkSetting = await storage.getSetting("TG_FORWARD_POST_LINK");
+  if (!postLinkSetting?.value) {
+    throw new Error("No source post link configured. Please set and save it first.");
+  }
+
+  const parsed = parseTelegramPostLink(postLinkSetting.value);
+  if (!parsed) {
+    throw new Error(`Failed to parse post link: ${postLinkSetting.value}`);
+  }
+
+  const { fromChatId, messageId } = parsed;
+  const groups = await getDetectedGroups();
+
+  if (groups.length === 0) {
+    throw new Error("No target groups detected. Add the bot to your groups first.");
+  }
+
+  if (!forwardBot) {
+    throw new Error("Forward bot is not initialized. Please configure a valid Bot Token first.");
+  }
+
+  const updatedGroups = [...groups];
+  let sentCount = 0;
+  const errors: string[] = [];
+
+  for (const group of updatedGroups) {
+    try {
+      await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
+      group.sentCount += 1;
+      group.lastSentAt = new Date().toISOString();
+      sentCount++;
+      log(`[TEST] Successfully forwarded post to group: ${group.groupName}`, "telegram-forward");
+    } catch (err: any) {
+      errors.push(`${group.groupName}: ${err.message}`);
+      log(`[TEST] Failed to forward to group ${group.groupName}: ${err.message}`, "telegram-forward");
+    }
+  }
+
+  await saveDetectedGroups(updatedGroups);
+
+  return {
+    success: sentCount > 0,
+    totalGroups: groups.length,
+    sentCount,
+    errors
+  };
+}
+
+
 export function startForwardScheduler(intervalMinutes: number) {
   if (forwardInterval) {
     clearInterval(forwardInterval);

@@ -176,6 +176,44 @@ export default function ForwardPage() {
     }
   });
 
+  const testForwardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/forward/test", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to test forward message.");
+      }
+      return res.json() as Promise<{
+        success: boolean;
+        totalGroups: number;
+        sentCount: number;
+        errors: string[];
+      }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forward/groups"] });
+      if (data.errors && data.errors.length > 0) {
+        toast({
+          title: "Test Forward Partially Succeeded",
+          description: `Forwarded to ${data.sentCount} of ${data.totalGroups} groups. Errors: ${data.errors.join(", ")}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Test Forward Successful",
+          description: `Successfully forwarded post to all ${data.sentCount} group(s).`,
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Test Forward Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!botToken.trim()) {
@@ -414,6 +452,21 @@ export default function ForwardPage() {
 
               {/* Group Action Buttons */}
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => testForwardMutation.mutate()}
+                  disabled={testForwardMutation.isLoading || !config?.botToken || groups.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-white/10 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border-amber-500/20 flex items-center gap-1.5 transition-all text-xs font-black py-4 px-3.5"
+                >
+                  {testForwardMutation.isLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  Test Forward
+                </Button>
+
                 <Button
                   onClick={() => syncGroupsMutation.mutate()}
                   disabled={syncGroupsMutation.isLoading || !config?.botToken}
