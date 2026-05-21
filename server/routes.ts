@@ -699,11 +699,11 @@ export async function registerRoutes(
       const sendChunked = async () => {
         try {
           // First message: purchase summary header
-          const headerMsg = `✅ <b>Purchase Successful!</b> 🛍️\n\n` +
-            `📦 Product: <b>${result.product.name}</b>\n` +
+          const headerMsg = `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Purchase Successful!</b> <tg-emoji emoji-id="5456343263340405032">🛍️</tg-emoji>\n\n` +
+            `<tg-emoji emoji-id="5231102735817918643">📦</tg-emoji> Product: <b>${result.product.name}</b>\n` +
             `🔢 Quantity: <b>${result.quantity} units</b>\n` +
-            `💵 Total Price: <b>$${((result.product.price * result.quantity) / 100).toFixed(2)}</b>\n\n` +
-            `🔑 <b>Your credentials are below${allItems.length > CHUNK_SIZE ? ` (sent in ${Math.ceil(allItems.length / CHUNK_SIZE)} parts)` : ''}:</b>`;
+            `<tg-emoji emoji-id="5201692367437974073">💵</tg-emoji> Total Price: <b>$${((result.product.price * result.quantity) / 100).toFixed(2)}</b>\n\n` +
+            `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Your credentials are below${allItems.length > CHUNK_SIZE ? ` (sent in ${Math.ceil(allItems.length / CHUNK_SIZE)} parts)` : ''}:</b>`;
 
           await bot?.sendMessage(tgUser.id, headerMsg, { parse_mode: 'HTML' });
 
@@ -714,8 +714,8 @@ export async function registerRoutes(
             const totalParts = Math.ceil(allItems.length / CHUNK_SIZE);
 
             let chunkMsg = totalParts > 1
-              ? `🔑 <b>Credentials (Part ${partNum}/${totalParts}):</b>\n`
-              : `🔑 <b>Your Credentials:</b>\n`;
+              ? `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Credentials (Part ${partNum}/${totalParts}):</b>\n`
+              : `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Your Credentials:</b>\n`;
 
             chunk.forEach((item, idx) => {
               const num = (i + idx + 1).toString().padStart(2, '0');
@@ -723,7 +723,7 @@ export async function registerRoutes(
             });
 
             if (i + CHUNK_SIZE >= allItems.length) {
-              chunkMsg += `\nThank you for shopping with us! 🛍️`;
+              chunkMsg += `\nThank you for shopping with us! <tg-emoji emoji-id="5456343263340405032">🛍️</tg-emoji>`;
             }
 
             await bot?.sendMessage(tgUser.id, chunkMsg, { parse_mode: 'HTML' });
@@ -827,12 +827,12 @@ export async function registerRoutes(
 
       const sendBundleChunked = async () => {
         try {
-          const bundleHeader = `✅ <b>Bundle Claimed Successfully!</b> ✨\n\n` +
-            `🎁 Offer: <b>${result.offer.name}</b>\n` +
+          const bundleHeader = `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Bundle Claimed Successfully!</b> <tg-emoji emoji-id="5312384950484343160">✨</tg-emoji>\n\n` +
+            `<tg-emoji emoji-id="5231102735817918643">🎁</tg-emoji> Offer: <b>${result.offer.name}</b>\n` +
             `📦 Product: <b>${result.offer.product.name}</b>\n` +
             `🔢 Quantity: <b>${result.offer.bundleQuantity} units</b>\n` +
-            `💵 Price: <b>$${(result.offer.price / 100).toFixed(2)}</b>\n\n` +
-            `🔑 <b>Your credentials are below${bundleItems.length > BUNDLE_CHUNK_SIZE ? ` (sent in ${Math.ceil(bundleItems.length / BUNDLE_CHUNK_SIZE)} parts)` : ''}:</b>`;
+            `<tg-emoji emoji-id="5201692367437974073">💵</tg-emoji> Price: <b>$${(result.offer.price / 100).toFixed(2)}</b>\n\n` +
+            `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Your credentials are below${bundleItems.length > BUNDLE_CHUNK_SIZE ? ` (sent in ${Math.ceil(bundleItems.length / BUNDLE_CHUNK_SIZE)} parts)` : ''}:</b>`;
 
           await offerBot?.sendMessage(tgUser.id, bundleHeader, { parse_mode: 'HTML' });
 
@@ -842,8 +842,8 @@ export async function registerRoutes(
             const totalParts = Math.ceil(bundleItems.length / BUNDLE_CHUNK_SIZE);
 
             let chunkMsg = totalParts > 1
-              ? `🔑 <b>Credentials (Part ${partNum}/${totalParts}):</b>\n`
-              : `🔑 <b>Your Credentials:</b>\n`;
+              ? `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Credentials (Part ${partNum}/${totalParts}):</b>\n`
+              : `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Your Credentials:</b>\n`;
 
             chunk.forEach((item, idx) => {
               const num = (i + idx + 1).toString().padStart(2, '0');
@@ -851,7 +851,7 @@ export async function registerRoutes(
             });
 
             if (i + BUNDLE_CHUNK_SIZE >= bundleItems.length) {
-              chunkMsg += `\nEnjoy your premium bundle! 🛍️`;
+              chunkMsg += `\nEnjoy your premium bundle! <tg-emoji emoji-id="5456343263340405032">🛍️</tg-emoji>`;
             }
 
             await offerBot?.sendMessage(tgUser.id, chunkMsg, { parse_mode: 'HTML' });
@@ -1427,7 +1427,7 @@ const formatOfferMessage = (offer: any, productType: string) => {
     "6275869662467069270", "6276120956708591159", "6276075885321786491",
     "6276045545672807753", "6273727139506295416", "6276107406086771779"
   ];
-  const header = headerEmojiIds.map(id => `🎁`).join('');
+  const header = headerEmojiIds.map(id => `<tg-emoji emoji-id="${id}">🎁</tg-emoji>`).join('');
   const numEmojiMap: Record<string, string> = {
     "0": "6228712321716325542", "1": "6231028576104221771", "2": "6228508985079632140",
     "3": "6228892912206220866", "4": "6228651427670002796", "5": "6230754058974531742",
@@ -1435,11 +1435,11 @@ const formatOfferMessage = (offer: any, productType: string) => {
     "9": "6230968699965150268"
   };
 
-  let text = `💭 <b>Special Offers (Bundle Deals)</b> 🛍\n━━━━━━━━━━━━━━━\n\n`;
+  let text = `<tg-emoji emoji-id="5467538555158943525">💭</tg-emoji> <b>Special Offers (Bundle Deals)</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n━━━━━━━━━━━━━━━\n\n`;
   text += `${header}\n\n`;
   text += `<b>${offer.name}</b>\n\n`;
-  text += `🎁 Quantity: <b>${offer.bundleQuantity} pcs</b>\n`;
-  text += `💸 Bundle Price: <b>$${priceUSD}</b>\n\n`;
+  text += `<tg-emoji emoji-id="6276134137963222688">🎁</tg-emoji> Quantity: <b>${offer.bundleQuantity} pcs</b>\n`;
+  text += `<tg-emoji emoji-id="5201692367437974073">💸</tg-emoji> Bundle Price: <b>$${priceUSD}</b>\n\n`;
 
   if (offer.expiresAt) {
     const diff = new Date(offer.expiresAt).getTime() - Date.now();
@@ -1449,10 +1449,10 @@ const formatOfferMessage = (offer: any, productType: string) => {
       const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
       const s = (totalSeconds % 60).toString().padStart(2, '0');
 
-      text += `🤩 <b>Hurry! Expires In</b> 🤩\n`;
+      text += `<tg-emoji emoji-id="5206715082582533386">🤩</tg-emoji> <b>Hurry! Expires In</b> <tg-emoji emoji-id="5206715082582533386">🤩</tg-emoji>\n`;
       const formatTimeDigit = (digit: string | undefined) => {
         const d = digit || '0';
-        return `🎁`;
+        return `<tg-emoji emoji-id="${numEmojiMap[d] || numEmojiMap['0']}">🎁</tg-emoji>`;
       };
       text += `${formatTimeDigit(h[0])}${formatTimeDigit(h[1])} <b>:</b> ${formatTimeDigit(m[0])}${formatTimeDigit(m[1])} <b>:</b> ${formatTimeDigit(s[0])}${formatTimeDigit(s[1])}\n`;
     }
@@ -1734,20 +1734,20 @@ app.post("/api/broadcast/availability", isAuth, async (req, res) => {
       return res.status(400).json({ message: "No accounts in stock to broadcast." });
     }
 
-    let availabilityMsg = `📋 <b>Product Availability</b>\n\n`;
+    let availabilityMsg = `<tg-emoji emoji-id="5215209935188534658">📋</tg-emoji> <b>Product Availability</b>\n\n`;
     for (const [category, items] of Object.entries(groupedProducts)) {
       let catIcon = '';
       const catLower = category.toLowerCase();
-      if (catLower.includes('aws')) catIcon = '☁️ ';
-      else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '💧 ';
-      else if (catLower.includes('azure')) catIcon = '☁️ ';
-      else if (catLower.includes('kamatera')) catIcon = '☁️ ';
+      if (catLower.includes('aws')) catIcon = '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> ';
+      else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '<tg-emoji emoji-id="6235413342576450502">💧</tg-emoji> ';
+      else if (catLower.includes('azure')) catIcon = '<tg-emoji emoji-id="6235420094265037090">☁️</tg-emoji> ';
+      else if (catLower.includes('kamatera')) catIcon = '<tg-emoji emoji-id="6235239937566838722">☁️</tg-emoji> ';
 
-      availabilityMsg += `➖➖➖ ${catIcon}<b>${category}</b> 🛍 ➖➖➖\n`;
+      availabilityMsg += `➖➖➖ ${catIcon}<b>${category}</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji> ➖➖➖\n`;
       for (const item of items) {
-        let formattedName = item.name.replace(/🇱🇰/g, '🇱🇰');
+        let formattedName = item.name.replace(/🇱🇰/g, '<tg-emoji emoji-id="5224277294050192388">🇱🇰</tg-emoji>');
         if (!formattedName.includes('5785025630055700143')) {
-          formattedName = formattedName.replace(/\bAWS\b/gi, '☁️ AWS');
+          formattedName = formattedName.replace(/\bAWS\b/gi, '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> AWS');
         }
         availabilityMsg += `${formattedName} | $${(item.price / 100).toFixed(2)} | In stock ${item.stockCount} pcs\n`;
       }
@@ -2588,7 +2588,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const keyboard = { inline_keyboard };
 
         if (query.message?.message_id) {
-          await targetBot.editMessageText(`💭 <b>Your Profile</b> 🛍\n━━━━━━━━━━━━━━━\n✅ <b>ID:</b> ${tgUser.telegramId}\n\n💵 <b>Balance:</b> ${balanceUSD}$\n\n⭐️ <b>Purchased pcs:</b> ${userPurchases} pcs\n\n🕒 <b>Registration:</b> ${regDate}`, {
+          await targetBot.editMessageText(`<tg-emoji emoji-id="5467538555158943525">💭</tg-emoji> <b>Your Profile</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n━━━━━━━━━━━━━━━\n<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>ID:</b> ${tgUser.telegramId}\n\n<tg-emoji emoji-id="5201692367437974073">💵</tg-emoji> <b>Balance:</b> ${balanceUSD}$\n\n<tg-emoji emoji-id="5348256365477382384">⭐️</tg-emoji> <b>Purchased pcs:</b> ${userPurchases} pcs\n\n<tg-emoji emoji-id="5805188079148863343">🕒</tg-emoji> <b>Registration:</b> ${regDate}`, {
             chat_id: chatId,
             message_id: query.message.message_id,
             reply_markup: keyboard,
@@ -2630,7 +2630,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
       // If no parameter, show the standard welcome message
       if (!parameter) {
-        targetBot.sendMessage(chatId, `<b>Welcome to ${storeName} !</b> 🛍\n\n<b>Select an option below:</b> 🔖`, opts);
+        targetBot.sendMessage(chatId, `<b>Welcome to ${storeName} !</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n\n<b>Select an option below:</b> <tg-emoji emoji-id="5231102735817918643">🔖</tg-emoji>`, opts);
       } else if (parameter.startsWith('offer_')) {
         const offerId = parseInt(parameter.substring(6));
         const offer = await storage.getSpecialOffer(offerId);
@@ -2660,8 +2660,8 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const availableStock = stock.filter(c => c.status === 'available').length;
 
             if (availableStock < (offer.bundleQuantity || 1)) {
-              const claimedMsg = `⚠️ <b>Claim Unsuccessful</b>\n\n` +
-                `This offer has been already claimed by another person! 🤍`;
+              const claimedMsg = `<tg-emoji emoji-id="5215209935188534658">⚠️</tg-emoji> <b>Claim Unsuccessful</b>\n\n` +
+                `This offer has been already claimed by another person! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`;
               return targetBot.sendMessage(chatId, claimedMsg, { parse_mode: 'HTML' });
             }
 
@@ -2688,7 +2688,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const storeNameSetting = await storage.getSetting("STORE_NAME");
         const storeName = storeNameSetting?.value || "Imesh cloud store";
         
-        targetBot.sendMessage(chatId, `<b>Welcome to ${storeName} !</b> 🛍\n\n<b>Select an option below:</b> 🔖`, opts);
+        targetBot.sendMessage(chatId, `<b>Welcome to ${storeName} !</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n\n<b>Select an option below:</b> <tg-emoji emoji-id="5231102735817918643">🔖</tg-emoji>`, opts);
       }
 
       if (msg.from) {
@@ -2833,22 +2833,22 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             groupedProducts[p.type].push(p);
           }
 
-          let response = "📋 <b>Product Availability</b>\n\n";
+          let response = "<tg-emoji emoji-id=\"5215209935188534658\">📋</tg-emoji> <b>Product Availability</b>\n\n";
           for (const [category, items] of Object.entries(groupedProducts)) {
             let catIcon = '';
             const catLower = category.toLowerCase();
-            if (catLower.includes('aws')) catIcon = '☁️ ';
-            else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '💧 ';
-            else if (catLower.includes('azure')) catIcon = '☁️ ';
-            else if (catLower.includes('kamatera')) catIcon = '☁️ ';
+            if (catLower.includes('aws')) catIcon = '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> ';
+            else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '<tg-emoji emoji-id="6235413342576450502">💧</tg-emoji> ';
+            else if (catLower.includes('azure')) catIcon = '<tg-emoji emoji-id="6235420094265037090">☁️</tg-emoji> ';
+            else if (catLower.includes('kamatera')) catIcon = '<tg-emoji emoji-id="6235239937566838722">☁️</tg-emoji> ';
 
-            response += `➖➖➖ ${catIcon}<b>${escapeHTML(category)}</b> 🛍 ➖➖➖\n`;
+            response += `➖➖➖ ${catIcon}<b>${escapeHTML(category)}</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji> ➖➖➖\n`;
             for (const item of items) {
-              let formattedName = escapeHTML(item.name).replace(/🇱🇰/g, '🇱🇰');
+              let formattedName = escapeHTML(item.name).replace(/🇱🇰/g, '<tg-emoji emoji-id="5224277294050192388">🇱🇰</tg-emoji>');
 
               // Also add custom icons to AWS names if it starts with AWS but avoid double tagging 
               if (!formattedName.includes('5785025630055700143')) {
-                formattedName = formattedName.replace(/\bAWS\b/gi, '☁️ AWS');
+                formattedName = formattedName.replace(/\bAWS\b/gi, '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> AWS');
               }
 
               response += `${formattedName} | $${(item.price / 100).toFixed(2)} | In stock ${item.stockCount} pcs\n`;
@@ -2872,7 +2872,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         });
         const botInstance = targetBot;
         if (botInstance) {
-          await botInstance.sendMessage(chatId, `🛍 <b>Select the product you need</b> 🎁`, {
+          await botInstance.sendMessage(chatId, `<tg-emoji emoji-id="6276134137963222688">🛍</tg-emoji> <b>Select the product you need</b> <tg-emoji emoji-id="5231102735817918643">🎁</tg-emoji>`, {
             reply_markup: {
               inline_keyboard: keyboard
             },
@@ -3045,7 +3045,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         const botInstance = targetBot;
         if (botInstance) {
-          await botInstance.sendMessage(chatId, `💭 <b>Your Profile</b> 🛍\n━━━━━━━━━━━━━━━\n✅ <b>ID:</b> ${userToDisplay.telegramId}\n\n💵 <b>Balance:</b> ${balanceUSD}$\n\n⭐️ <b>Purchased pcs:</b> ${userPurchases} pcs\n\n🕒 <b>Registration:</b> ${regDate}`, {
+          await botInstance.sendMessage(chatId, `<tg-emoji emoji-id="5467538555158943525">💭</tg-emoji> <b>Your Profile</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n━━━━━━━━━━━━━━━\n<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>ID:</b> ${userToDisplay.telegramId}\n\n<tg-emoji emoji-id="5201692367437974073">💵</tg-emoji> <b>Balance:</b> ${balanceUSD}$\n\n<tg-emoji emoji-id="5348256365477382384">⭐️</tg-emoji> <b>Purchased pcs:</b> ${userPurchases} pcs\n\n<tg-emoji emoji-id="5805188079148863343">🕒</tg-emoji> <b>Registration:</b> ${regDate}`, {
             reply_markup: keyboard,
             parse_mode: 'HTML'
           });
@@ -3054,7 +3054,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const supportUsernameSetting = await storage.getSetting("SUPPORT_USERNAME");
         const supportUsername = supportUsernameSetting?.value || "@rochana_imesh";
         const cleanUsername = supportUsername.replace('@', '');
-        targetBot.sendMessage(chatId, `📩 <b>For support, please contact us below:</b>`, {
+        targetBot.sendMessage(chatId, `<tg-emoji emoji-id="5461151367559141950">📩</tg-emoji> <b>For support, please contact us below:</b>`, {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[
@@ -3067,19 +3067,19 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const supportUsernameSetting = await storage.getSetting("SUPPORT_USERNAME");
         const supportUsername = supportUsernameSetting?.value || "@rochana_imesh";
 
-        const rulesMessage = `👋 <b>Welcome, ${userName}</b> ✨\n\n` +
-          `⚠️ <b>STORE RULES – PLEASE READ BEFORE BUYING</b> ⚠️\n\n` +
-          `1️⃣ <b>Login Warranty Included</b>\n` +
+        const rulesMessage = `<tg-emoji emoji-id="5413554183502572090">👋</tg-emoji> <b>Welcome, ${userName}</b> <tg-emoji emoji-id="5413554183502572090">✨</tg-emoji>\n\n` +
+          `<tg-emoji emoji-id="5213181173026533794">⚠️</tg-emoji> <b>STORE RULES – PLEASE READ BEFORE BUYING</b> <tg-emoji emoji-id="5213181173026533794">⚠️</tg-emoji>\n\n` +
+          `<tg-emoji emoji-id="5220091753930959575">1️⃣</tg-emoji> <b>Login Warranty Included</b>\n` +
           `You will receive a 100% working account at the time of purchase.\n` +
-          `⏱️ <i>Checking time: 10–30 minutes after delivery.</i>\n\n` +
-          `2️⃣ <b>Stay Safe & Secure</b>\n` +
+          `<tg-emoji emoji-id="6010111371251815589">⏱️</tg-emoji> <i>Checking time: 10–30 minutes after delivery.</i>\n\n` +
+          `<tg-emoji emoji-id="5220041227935690133">2️⃣</tg-emoji> <b>Stay Safe & Secure</b>\n` +
           `Always use quality proxies and a proper fingerprint/anti-detect browser to avoid any security issues.\n\n` +
-          `3️⃣ <b>User Responsibility</b>\n` +
+          `<tg-emoji emoji-id="5220224743298312689">3️⃣</tg-emoji> <b>User Responsibility</b>\n` +
           `We are not responsible for any actions taken after purchase.\n` +
           `Account usage is fully under the buyer’s responsibility.\n\n` +
-          `💯 <b>Follow the rules, stay secure, and enjoy your purchase!</b> 💯\n\n` +
-          `⛱️ <b>Need help or have questions?</b>\n` +
-          `🎗️ <b>Contact us:</b> 💌 ${supportUsername}`;
+          `<tg-emoji emoji-id="4958734459869332468">💯</tg-emoji> <b>Follow the rules, stay secure, and enjoy your purchase!</b> <tg-emoji emoji-id="4958734459869332468">💯</tg-emoji>\n\n` +
+          `<tg-emoji emoji-id="5341498088408234504">⛱️</tg-emoji> <b>Need help or have questions?</b>\n` +
+          `<tg-emoji emoji-id="5282843764451195532">🎗️</tg-emoji> <b>Contact us:</b> <tg-emoji emoji-id="5461151367559141950">💌</tg-emoji> ${supportUsername}`;
 
         targetBot.sendMessage(chatId, rulesMessage, { parse_mode: 'HTML' });
       } else if (tgUser?.lastAction?.startsWith('awaiting_quantity_')) {
@@ -3157,12 +3157,12 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           // 6. Success Response
-          let productName = result.product.name.replace(/🇱🇰/g, '🇱🇰');
-          productName = productName.replace(/\bAWS\b/gi, '☁️ AWS');
+          let productName = result.product.name.replace(/🇱🇰/g, '<tg-emoji emoji-id="5224277294050192388">🇱🇰</tg-emoji>');
+          productName = productName.replace(/\bAWS\b/gi, '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> AWS');
 
           const itemsText = result.availableCredentials.map((c, index) => `<b>${(index + 1).toString().padStart(2, '0')}.</b>\n${escapeHTML(c.content)}`).join('\n\n');
 
-          await targetBot.sendMessage(chatId, `✅ <b>Purchase successful!</b> 🙏\n\n<b>Product:</b> ${productName}\n<b>Quantity:</b> ${quantity}\n<b>Total:</b> $${(result.totalPrice / 100).toFixed(2)}\n\n<b>Your items:</b>\n\n${itemsText}`, { parse_mode: 'HTML' });
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Purchase successful!</b> <tg-emoji emoji-id="5431411862950388510">🙏</tg-emoji>\n\n<b>Product:</b> ${productName}\n<b>Quantity:</b> ${quantity}\n<b>Total:</b> $${(result.totalPrice / 100).toFixed(2)}\n\n<b>Your items:</b>\n\n${itemsText}`, { parse_mode: 'HTML' });
 
           // Emit real-time notification to Admin Dashboard
           const userDisplayName = tgUser.firstName || tgUser.username || "User";
@@ -3188,9 +3188,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           if (err.message === "Insufficient balance") {
             const totalPrice = product.price * quantity;
             
-            const errorMsg = `❌ <b>Insufficient Balance!</b>\n\n` +
+            const errorMsg = `<tg-emoji emoji-id="5215209935188534658">❌</tg-emoji> <b>Insufficient Balance!</b>\n\n` +
               `Your current balance is <b>$${(tgUser.balance / 100).toFixed(2)}</b>, but this purchase costs <b>$${(totalPrice / 100).toFixed(2)}</b>.\n\n` +
-              `Please top up your account to continue. 💸`;
+              `Please top up your account to continue. <tg-emoji emoji-id="5231102735817918643">💸</tg-emoji>`;
 
             await targetBot.sendMessage(chatId, errorMsg, {
               parse_mode: 'HTML',
@@ -3340,16 +3340,16 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           status: 'pending'
         });
 
-        const response = `💰 <b>Top-up: ${method}</b>\n` +
+        const response = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: ${method}</b>\n` +
           `━━━━━━━━━━━━━━━\n` +
-          `🆔 ${method} Pay ID: <code>${payId}</code>\n` +
-          `💵 Transfer amount: <code>${amount}$</code>\n` +
-          `📝 In Note: <code>${userId}</code>\n\n` +
-          `⚠️ <b>IMPORTANT</b>\n` +
+          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> ${method} Pay ID: <code>${payId}</code>\n` +
+          `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount}$</code>\n` +
+          `<tg-emoji emoji-id="5334982154868783692">📝</tg-emoji> In Note: <code>${userId}</code>\n\n` +
+          `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
           `• Please transfer this <b>exact amount</b>.\n` +
           `• You <b>MUST</b> include your User ID in the Note field.\n` +
           `━━━━━━━━━━━━━━━\n` +
-          `⏳ After payment, click on Check payment`;
+          `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
         const keyboard = [
           [{ text: `📋 Copy ${method} Pay ID: ${payId}`, callback_data: `copy_payid_${payId}` }],
@@ -3596,10 +3596,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           targetBot.sendMessage(chatId, 
-            `✅ <b>TRC20 Payment Verified successfully!</b>\n\n` +
-            `💰 Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-            `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! 🤍`,
+            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
             { parse_mode: 'HTML' }
           );
 
@@ -3707,10 +3707,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           targetBot.sendMessage(chatId, 
-            `✅ <b>Aptos Payment Verified successfully!</b>\n\n` +
-            `💰 Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-            `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! 🤍`,
+            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
             { parse_mode: 'HTML' }
           );
 
@@ -3822,22 +3822,22 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         let catIcon = '';
         const catLower = category.toLowerCase();
-        if (catLower.includes('aws')) catIcon = '☁️ ';
-        else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '💧 ';
-        else if (catLower.includes('azure')) catIcon = '☁️ ';
-        else if (catLower.includes('kamatera')) catIcon = '☁️ ';
+        if (catLower.includes('aws')) catIcon = '<tg-emoji emoji-id="5785025630055700143">☁️</tg-emoji> ';
+        else if (catLower.includes('digital ocean') || catLower.includes('digitalocean')) catIcon = '<tg-emoji emoji-id="6235413342576450502">💧</tg-emoji> ';
+        else if (catLower.includes('azure')) catIcon = '<tg-emoji emoji-id="6235420094265037090">☁️</tg-emoji> ';
+        else if (catLower.includes('kamatera')) catIcon = '<tg-emoji emoji-id="6235239937566838722">☁️</tg-emoji> ';
 
-        targetBot.sendMessage(chatId, `${catIcon} <b>${category}</b>\n\nSelect the product you need 🛍`, {
+        targetBot.sendMessage(chatId, `${catIcon} <b>${category}</b>\n\nSelect the product you need <tg-emoji emoji-id="5231102735817918643">🛍</tg-emoji>`, {
           parse_mode: 'HTML',
           reply_markup: { inline_keyboard: keyboard }
         });
       } else if (data.startsWith('copy_userid_')) {
         const userIdToCopy = data.substring(12);
-        await targetBot.sendMessage(chatId, `🆔 <b>User ID sent!</b> You can now long-press to copy it. 📋`, { parse_mode: 'HTML' });
+        await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>User ID sent!</b> You can now long-press to copy it. <tg-emoji emoji-id="5231102735817918643">📋</tg-emoji>`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${userIdToCopy}</code>`, { parse_mode: 'HTML' });
       } else if (data.startsWith('copy_payid_')) {
         const payIdToCopy = data.substring(11);
-        await targetBot.sendMessage(chatId, `🆔 <b>Pay ID sent!</b> You can now long-press to copy it. 📋`, { parse_mode: 'HTML' });
+        await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>Pay ID sent!</b> You can now long-press to copy it. <tg-emoji emoji-id="5231102735817918643">📋</tg-emoji>`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${payIdToCopy}</code>`, { parse_mode: 'HTML' });
       } else if (data.startsWith('copy_wallet_')) {
         let walletToCopy = data.substring(12);
@@ -3937,18 +3937,18 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           // 4. Success Response
-          let successMsg = `✅ <b>Purchase Successful!</b> 🛍️\n\n` +
-            `🎁 Product: <b>${offer.name}</b>\n` +
+          let successMsg = `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Purchase Successful!</b> <tg-emoji emoji-id="5456343263340405032">🛍️</tg-emoji>\n\n` +
+            `<tg-emoji emoji-id="5231102735817918643">🎁</tg-emoji> Product: <b>${offer.name}</b>\n` +
             `📦 Quantity: <b>${offer.bundleQuantity || 1} pcs</b>\n` +
-            `💵 Price: <b>$${(offer.price / 100).toFixed(2)}</b>\n\n` +
-            `🔑 <b>Your Credentials:</b>\n`;
+            `<tg-emoji emoji-id="5201692367437974073">💵</tg-emoji> Price: <b>$${(offer.price / 100).toFixed(2)}</b>\n\n` +
+            `<tg-emoji emoji-id="6276134137963222688">🔑</tg-emoji> <b>Your Credentials:</b>\n`;
 
           result.availableCredentials.forEach((c, index) => {
             const num = (index + 1).toString().padStart(2, '0');
             successMsg += `<b>Account ${num}:</b> <code>${c.content}</code>\n`;
           });
 
-          successMsg += `\nThank you for shopping with us! 🛍️`;
+          successMsg += `\nThank you for shopping with us! <tg-emoji emoji-id="5456343263340405032">🛍️</tg-emoji>`;
 
           await targetBot.answerCallbackQuery(query.id, { text: "✅ Purchase Successful!" });
           confirmingOffers.delete(chatIdStr);
@@ -4030,7 +4030,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           ]
         };
 
-        const menuText = `📊 📜 <b>Purchase History Menu</b>\n\nPlease select an option below: 🎁`;
+        const menuText = `<tg-emoji emoji-id="5334982154868783692">📊</tg-emoji> <tg-emoji emoji-id="6276090299232031662">📜</tg-emoji> <b>Purchase History Menu</b>\n\nPlease select an option below: <tg-emoji emoji-id="5231102735817918643">🎁</tg-emoji>`;
 
         await targetBot.sendMessage(chatId, menuText, {
           parse_mode: 'HTML',
@@ -4052,13 +4052,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         for (let i = 0; i < displayOrders.length; i += 10) {
           const batch = displayOrders.slice(i, i + 10);
           let historyText = i === 0
-            ? `📜 <b>Your Purchase History</b> (${data === 'history_last10' ? 'Last 10' : 'All'}):\n\n`
+            ? `<tg-emoji emoji-id="5334982154868783692">📜</tg-emoji> <b>Your Purchase History</b> (${data === 'history_last10' ? 'Last 10' : 'All'}):\n\n`
             : '';
 
           batch.forEach((order, index) => {
             const safeName = escapeHTML(order.product?.name || 'Unknown');
             const safeContent = escapeHTML(order.credential?.content || 'N/A');
-            historyText += `<b>${i + index + 1}.</b> 🛍 <b>${safeName}</b>\n💰 $${((order.product?.price || 0) / 100).toFixed(2)}\n🔑 <code>${safeContent}</code>\n\n`;
+            historyText += `<b>${i + index + 1}.</b> <tg-emoji emoji-id="6276134137963222688">🛍</tg-emoji> <b>${safeName}</b>\n<tg-emoji emoji-id="5201692367437974073">💰</tg-emoji> $${((order.product?.price || 0) / 100).toFixed(2)}\n<tg-emoji emoji-id="6276090299232031662">🔑</tg-emoji> <code>${safeContent}</code>\n\n`;
           });
 
           await targetBot.sendMessage(chatId, historyText, { parse_mode: 'HTML' });
@@ -4099,7 +4099,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             "6276045545672807753", "6273727139506295416", "6276107406086771779"
           ];
 
-          const header = headerEmojiIds.map(id => `🎁`).join('');
+          const header = headerEmojiIds.map(id => `<tg-emoji emoji-id="${id}">🎁</tg-emoji>`).join('');
 
           const numEmojiMap: Record<string, string> = {
             "0": "6228712321716325542", "1": "6231028576104221771", "2": "6228508985079632140",
@@ -4108,7 +4108,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             "9": "6230968699965150268"
           };
 
-          let text = `💭 <b>Special Offers (Bundle Deals)</b> 🛍\n━━━━━━━━━━━━━━━\n\n`;
+          let text = `<tg-emoji emoji-id="5467538555158943525">💭</tg-emoji> <b>Special Offers (Bundle Deals)</b> <tg-emoji emoji-id="5456343263340405032">🛍</tg-emoji>\n━━━━━━━━━━━━━━━\n\n`;
           text += `${header}\n\n`;
 
           const keyboard = { inline_keyboard: [] as any[] };
@@ -4116,8 +4116,8 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           for (const offer of offers) {
             const priceUSD = (offer.price / 100).toFixed(2);
             text += `<b>${offer.name}</b>\n\n`;
-            text += `🎁 Quantity: <b>${offer.bundleQuantity} pcs</b>\n`;
-            text += `💎 Bundle Price: <b>$${priceUSD}</b>\n\n`;
+            text += `<tg-emoji emoji-id="6276134137963222688">🎁</tg-emoji> Quantity: <b>${offer.bundleQuantity} pcs</b>\n`;
+            text += `<tg-emoji emoji-id="5201692367437974073">💎</tg-emoji> Bundle Price: <b>$${priceUSD}</b>\n\n`;
 
             if (offer.expiresAt) {
               const diff = new Date(offer.expiresAt).getTime() - Date.now();
@@ -4127,10 +4127,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
                 const s = (totalSeconds % 60).toString().padStart(2, '0');
 
-                text += `🤩 <b>Hurry! Expires In</b> 🤩\n`;
+                text += `<tg-emoji emoji-id="5206715082582533386">🤩</tg-emoji> <b>Hurry! Expires In</b> <tg-emoji emoji-id="5206715082582533386">🤩</tg-emoji>\n`;
                 const formatTimeDigit = (digit: string | undefined) => {
                   const d = digit || '0';
-                  return `🎁`;
+                  return `<tg-emoji emoji-id="${numEmojiMap[d] || numEmojiMap['0']}">🎁</tg-emoji>`;
                 };
 
                 text += `${formatTimeDigit(h[0])} ${formatTimeDigit(h[1])} <b>:</b> ${formatTimeDigit(m[0])} ${formatTimeDigit(m[1])} <b>:</b> ${formatTimeDigit(s[0])} ${formatTimeDigit(s[1])}\n`;
@@ -4194,9 +4194,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         if (currentTGUser.balance < offer.price) {
           await targetBot.answerCallbackQuery(query.id);
-          const lowBalanceMsg = `❌ <b>Insufficient Balance!</b>\n\n` +
+          const lowBalanceMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Insufficient Balance!</b>\n\n` +
             `Your current balance is <b>$${(currentTGUser.balance / 100).toFixed(2)}</b>, but this offer costs <b>$${(offer.price / 100).toFixed(2)}</b>.\n\n` +
-            `Please top up your account to continue. 💵`;
+            `Please top up your account to continue. <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>`;
 
           return targetBot.sendMessage(chatId, lowBalanceMsg, {
             parse_mode: 'HTML',
@@ -4238,9 +4238,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           ]
         };
 
-        const confirmText = `🎁 <b>${offer.name}</b>\n\n` +
-          `💎 Bundle Price: <b>$${(offer.price / 100).toFixed(2)}</b>\n\n` +
-          `Please confirm your purchase below: 🤍`;
+        const confirmText = `<tg-emoji emoji-id="6276134137963222688">🎁</tg-emoji> <b>${offer.name}</b>\n\n` +
+          `<tg-emoji emoji-id="5201692367437974073">💎</tg-emoji> Bundle Price: <b>$${(offer.price / 100).toFixed(2)}</b>\n\n` +
+          `Please confirm your purchase below: <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`;
 
         try {
           await targetBot.editMessageText(confirmText, {
@@ -4286,7 +4286,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
-        targetBot.sendMessage(chatId, `💰 <b>Select Payment Method:</b>`, {
+        targetBot.sendMessage(chatId, `<tg-emoji emoji-id="5201692367437974073">💰</tg-emoji> <b>Select Payment Method:</b>`, {
           parse_mode: 'HTML',
           reply_markup: { inline_keyboard: keyboard }
         });
@@ -4307,7 +4307,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           }
         } catch (err) { }
 
-        const prompt = await targetBot.sendMessage(chatId, `💰 Enter amount for ${method} (USDT 💵):`, {
+        const prompt = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> Enter amount for ${method} (USDT <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`, {
           parse_mode: 'HTML'
         });
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -4321,7 +4321,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           }
         } catch (err) { }
 
-        const prompt = await targetBot.sendMessage(chatId, `💰 Enter amount for Cryptomus deposit (USD 💵):`, {
+        const prompt = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> Enter amount for Cryptomus deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`, {
           parse_mode: 'HTML'
         });
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -4392,7 +4392,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             await targetBot.deleteMessage(chatId, userForDelete.lastErrorMessageId).catch(() => { });
             await storage.updateTelegramUser(userForDelete.id, { lastErrorMessageId: null });
           }
-          checkingMsg = await targetBot.sendMessage(chatId, `⏳ <b>Checking payment...</b> Please wait.`, { parse_mode: 'HTML' });
+          checkingMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> <b>Checking payment...</b> Please wait.`, { parse_mode: 'HTML' });
         } catch (e) { }
 
         try {
@@ -4458,9 +4458,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                   status: 'completed',
                   externalId: match.orderId
                 });
-                targetBot.sendMessage(chatId, `✅ <b>Binance payment verified!</b> $${expectedAmount} has been added to your balance.`, { parse_mode: 'HTML' });
+                targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Binance payment verified!</b> $${expectedAmount} has been added to your balance.`, { parse_mode: 'HTML' });
               } else {
-                const failMsg = `❌ <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. ❌`;
+                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. <tg-emoji emoji-id="6298544405435387645">❌</tg-emoji>`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
@@ -4472,7 +4472,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               }
             } else {
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-              const failMsg = `❌ <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. ❌`;
+              const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. <tg-emoji emoji-id="6298544405435387645">❌</tg-emoji>`;
               const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
               if (sentMsg) {
                 await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
@@ -4625,10 +4625,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                     if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                     await targetBot.sendMessage(chatId, 
-                      `✅ <b>TRC20 Payment Verified successfully!</b>\n\n` +
-                      `💰 Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                      `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                      `Thank you for your purchase! 🤍`,
+                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
                       { parse_mode: 'HTML' }
                     );
 
@@ -4709,10 +4709,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                           if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                           await targetBot.sendMessage(chatId, 
-                            `✅ <b>TRC20 Payment Verified successfully!</b>\n\n` +
-                            `💰 Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                            `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                            `Thank you for your purchase! 🤍`,
+                            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
                             { parse_mode: 'HTML' }
                           );
 
@@ -4750,7 +4750,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                   show_alert: true
                 });
 
-                const failMsg = `❌ <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
+                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
@@ -4857,10 +4857,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                     if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                     await targetBot.sendMessage(chatId, 
-                      `✅ <b>Aptos Payment Verified successfully!</b>\n\n` +
-                      `💰 Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                      `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                      `Thank you for your purchase! 🤍`,
+                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
                       { parse_mode: 'HTML' }
                     );
 
@@ -4978,10 +4978,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                         if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                         await targetBot.sendMessage(chatId, 
-                          `✅ <b>Aptos Payment Verified successfully!</b>\n\n` +
-                          `💰 Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                          `🆔 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                          `Thank you for your purchase! 🤍`,
+                          `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                          `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                          `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
                           { parse_mode: 'HTML' }
                         );
 
@@ -5018,7 +5018,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                   show_alert: true
                 });
 
-                const failMsg = `❌ <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
+                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
