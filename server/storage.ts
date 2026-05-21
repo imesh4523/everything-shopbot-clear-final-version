@@ -181,7 +181,9 @@ export class DatabaseStorage implements IStorage {
       { key: "TRC20_WALLET_ADDRESS", value: "" },
       { key: "APTOS_WALLET_ADDRESS", value: "" },
       { key: "PAYMENT_TRC20_ENABLED", value: "false" },
-      { key: "PAYMENT_APTOS_ENABLED", value: "false" }
+      { key: "PAYMENT_APTOS_ENABLED", value: "false" },
+      { key: "TRC20_VERIFICATION_MODE", value: "binance" },
+      { key: "APTOS_VERIFICATION_MODE", value: "binance" }
     ];
 
     for (const s of defaultSettings) {

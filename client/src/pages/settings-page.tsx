@@ -97,6 +97,14 @@ export default function SettingsPage() {
     queryKey: ["/api/settings/APTOS_WALLET_ADDRESS"],
   });
 
+  const { data: trc20VerificationModeSetting, isLoading: isTrc20VerificationModeLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/TRC20_VERIFICATION_MODE"],
+  });
+
+  const { data: aptosVerificationModeSetting, isLoading: isAptosVerificationModeLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/APTOS_VERIFICATION_MODE"],
+  });
+
   const { data: automationEnabledSetting, isLoading: isAutomationEnabledLoading } = useQuery<{ key: string, value: string }>({
     queryKey: ["/api/settings/AUTOMATION_ENABLED"],
   });
@@ -127,7 +135,8 @@ export default function SettingsPage() {
     isCryptomusEnabledLoading || isAutomationEnabledLoading ||
     isSpecialOffersEnabledLoading || isStoreNameLoading || isSupportUsernameLoading ||
     isSupportBtnTextLoading || isLoadingTextLoading ||
-    isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading;
+    isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading ||
+    isTrc20VerificationModeLoading || isAptosVerificationModeLoading;
 
   const [binanceEnabled, setBinanceEnabled] = useState(true);
   const [cryptomusEnabled, setCryptomusEnabled] = useState(true);
@@ -135,6 +144,8 @@ export default function SettingsPage() {
   const [aptosEnabled, setAptosEnabled] = useState(false);
   const [trc20Wallet, setTrc20Wallet] = useState("");
   const [aptosWallet, setAptosWallet] = useState("");
+  const [trc20VerificationMode, setTrc20VerificationMode] = useState("binance");
+  const [aptosVerificationMode, setAptosVerificationMode] = useState("binance");
   const [automationEnabled, setAutomationEnabled] = useState(true);
   const [specialOffersEnabled, setSpecialOffersEnabled] = useState(true);
 
@@ -161,6 +172,14 @@ export default function SettingsPage() {
   useEffect(() => {
     if (aptosWalletSetting?.value !== undefined) setAptosWallet(aptosWalletSetting.value);
   }, [aptosWalletSetting]);
+
+  useEffect(() => {
+    if (trc20VerificationModeSetting?.value !== undefined) setTrc20VerificationMode(trc20VerificationModeSetting.value || "binance");
+  }, [trc20VerificationModeSetting]);
+
+  useEffect(() => {
+    if (aptosVerificationModeSetting?.value !== undefined) setAptosVerificationMode(aptosVerificationModeSetting.value || "binance");
+  }, [aptosVerificationModeSetting]);
 
   useEffect(() => {
     if (automationEnabledSetting?.value !== undefined) setAutomationEnabled(automationEnabledSetting.value === "true");
@@ -396,6 +415,40 @@ export default function SettingsPage() {
       toast({
         title: "Aptos Wallet Updated",
         description: "Aptos wallet address has been updated.",
+      });
+    }
+  });
+
+  const trc20VerificationModeMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "TRC20_VERIFICATION_MODE",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/TRC20_VERIFICATION_MODE"] });
+      toast({
+        title: "TRC20 Verification Mode Updated",
+        description: "TRC20 payment verification mode has been updated.",
+      });
+    }
+  });
+
+  const aptosVerificationModeMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "APTOS_VERIFICATION_MODE",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/APTOS_VERIFICATION_MODE"] });
+      toast({
+        title: "Aptos Verification Mode Updated",
+        description: "Aptos payment verification mode has been updated.",
       });
     }
   });
@@ -1089,6 +1142,22 @@ export default function SettingsPage() {
                   </div>
                   <p className="text-[10px] text-white/40">USDT (TRC20) deposit address on the Tron network.</p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-white/50 uppercase tracking-widest">Verification Mode</Label>
+                  <select
+                    className="w-full glass-panel border-white/10 bg-purple-950/20 text-white h-12 px-3 rounded-xl focus:border-red-500/50 transition-all outline-none"
+                    value={trc20VerificationMode}
+                    onChange={(e) => {
+                      setTrc20VerificationMode(e.target.value);
+                      trc20VerificationModeMutation.mutate(e.target.value);
+                    }}
+                  >
+                    <option value="binance" className="bg-purple-950 text-white">Binance API Keys (Deposit History)</option>
+                    <option value="blockchain" className="bg-purple-950 text-white">Blockchain Network (TronScan)</option>
+                  </select>
+                  <p className="text-[10px] text-white/40">Select the service to use for payment verification.</p>
+                </div>
               </div>
             </div>
 
@@ -1131,6 +1200,22 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-[10px] text-white/40">USDT (Aptos) deposit address on the Aptos network.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-white/50 uppercase tracking-widest">Verification Mode</Label>
+                  <select
+                    className="w-full glass-panel border-white/10 bg-purple-950/20 text-white h-12 px-3 rounded-xl focus:border-cyan-500/50 transition-all outline-none"
+                    value={aptosVerificationMode}
+                    onChange={(e) => {
+                      setAptosVerificationMode(e.target.value);
+                      aptosVerificationModeMutation.mutate(e.target.value);
+                    }}
+                  >
+                    <option value="binance" className="bg-purple-950 text-white">Binance API Keys (Deposit History)</option>
+                    <option value="blockchain" className="bg-purple-950 text-white">Blockchain Network (Aptos Fullnode)</option>
+                  </select>
+                  <p className="text-[10px] text-white/40">Select the service to use for payment verification.</p>
                 </div>
               </div>
             </div>

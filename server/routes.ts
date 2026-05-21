@@ -62,6 +62,89 @@ function normalizeAptosAddress(addr: string): string {
   return clean.padStart(64, '0');
 }
 
+async function verifyDepositViaBinance(
+  txId: string,
+  networkType: 'TRC20' | 'APTOS',
+  walletAddress: string
+): Promise<{ success: boolean; actualAmount?: number; error?: string }> {
+  try {
+    const apiKey = (await storage.getSetting('BINANCE_API_KEY'))?.value;
+    const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
+
+    if (!apiKey || !secretKey) {
+      return { success: false, error: 'Binance API credentials are not configured by the administrator.' };
+    }
+
+    const timestamp = Date.now();
+    const queryStr = `coin=USDT&timestamp=${timestamp}`;
+    const signature = crypto
+      .createHmac('sha256', secretKey)
+      .update(queryStr)
+      .digest('hex');
+
+    const res = await axios.get(`https://api.binance.com/sapi/v1/capital/deposit/hisrec?${queryStr}&signature=${signature}`, {
+      headers: {
+        'X-MBX-APIKEY': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const deposits = res.data;
+    if (!deposits || !Array.isArray(deposits)) {
+      return { success: false, error: 'Could not fetch deposit records from Binance. Please verify API keys.' };
+    }
+
+    const cleanTxId = txId.trim().toLowerCase();
+    const match = deposits.find((d: any) => (d.txId || '').toLowerCase() === cleanTxId);
+
+    if (!match) {
+      return { success: false, error: 'Transaction not found in Binance deposit history. Please ensure it has been fully confirmed on-chain and credited to Binance.' };
+    }
+
+    if (match.status !== 1) {
+      return { success: false, error: 'Transaction is pending or not successfully completed in Binance.' };
+    }
+
+    if ((match.coin || '').toUpperCase() !== 'USDT') {
+      return { success: false, error: 'Transaction coin is not USDT.' };
+    }
+
+    // Verify network
+    const net = (match.network || '').toUpperCase();
+    if (networkType === 'TRC20') {
+      if (net !== 'TRX' && net !== 'TRON') {
+        return { success: false, error: 'Transaction network is not TRON (TRC20).' };
+      }
+    } else if (networkType === 'APTOS') {
+      if (net !== 'APT' && net !== 'APTOS') {
+        return { success: false, error: 'Transaction network is not Aptos.' };
+      }
+    }
+
+    // Verify deposit address matches our configured wallet address
+    const depAddr = (match.address || '').trim();
+    if (networkType === 'APTOS') {
+      if (normalizeAptosAddress(depAddr) !== normalizeAptosAddress(walletAddress)) {
+        return { success: false, error: 'Deposit destination address does not match our configured Aptos wallet.' };
+      }
+    } else {
+      if (depAddr.toLowerCase() !== walletAddress.trim().toLowerCase()) {
+        return { success: false, error: 'Deposit destination address does not match our configured TRC20 wallet.' };
+      }
+    }
+
+    const actualAmount = parseFloat(match.amount);
+    if (isNaN(actualAmount) || actualAmount <= 0) {
+      return { success: false, error: 'Invalid deposit amount.' };
+    }
+
+    return { success: true, actualAmount };
+  } catch (err: any) {
+    console.error('Binance deposit verification error:', err);
+    return { success: false, error: `Binance API error: ${err.response?.data?.msg || err.message}` };
+  }
+}
+
 async function verifyTrc20Transaction(
   txId: string,
   walletAddress: string
@@ -3479,9 +3562,15 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
-        const checkingMsg = await targetBot.sendMessage(chatId, `⏳ <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
+        const verificationMode = (await storage.getSetting('TRC20_VERIFICATION_MODE'))?.value || 'binance';
+        const checkingMsgText = verificationMode === 'binance' 
+          ? `⏳ <b>Verifying your TRC20 payment via Binance...</b> Please wait a moment.`
+          : `⏳ <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`;
+        const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
 
-        const result = await verifyTrc20Transaction(txId, walletAddress);
+        const result = verificationMode === 'binance'
+          ? await verifyDepositViaBinance(txId, 'TRC20', walletAddress)
+          : await verifyTrc20Transaction(txId, walletAddress);
 
         try {
           await targetBot.deleteMessage(chatId, checkingMsg.message_id);
@@ -3501,7 +3590,8 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           await storage.updatePayment(payment.id, {
             status: 'completed',
-            externalId: txId
+            externalId: txId,
+            amount: creditAmountCents
           });
 
           targetBot.sendMessage(chatId, 
@@ -3583,9 +3673,15 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
-        const checkingMsg = await targetBot.sendMessage(chatId, `⏳ <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
+        const verificationMode = (await storage.getSetting('APTOS_VERIFICATION_MODE'))?.value || 'binance';
+        const checkingMsgText = verificationMode === 'binance' 
+          ? `⏳ <b>Verifying your Aptos payment via Binance...</b> Please wait a moment.`
+          : `⏳ <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`;
+        const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
 
-        const result = await verifyAptosTransaction(txId, walletAddress);
+        const result = verificationMode === 'binance'
+          ? await verifyDepositViaBinance(txId, 'APTOS', walletAddress)
+          : await verifyAptosTransaction(txId, walletAddress);
 
         try {
           await targetBot.deleteMessage(chatId, checkingMsg.message_id);
@@ -3605,7 +3701,8 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           await storage.updatePayment(payment.id, {
             status: 'completed',
-            externalId: txId
+            externalId: txId,
+            amount: creditAmountCents
           });
 
           targetBot.sendMessage(chatId, 
@@ -4445,87 +4542,199 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             }
 
             try {
-              const url = `https://apilist.tronscanapi.com/api/token_trc20/transfers?limit=20&start=0&direction=2&address=${walletAddress.trim()}`;
-              const res = await axios.get(url);
-              const data = res.data;
+              const verificationMode = (await storage.getSetting('TRC20_VERIFICATION_MODE'))?.value || 'binance';
               let matched = false;
 
-              if (data && data.token_transfers && data.token_transfers.length > 0) {
-                const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                let usedTxIds: string[] = [];
-                if (usedTxIdsSetting?.value) {
-                  try {
-                    usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                  } catch (e) {
-                    console.error("Error parsing USED_TXIDS_JSON:", e);
-                  }
+              if (verificationMode === 'binance') {
+                const apiKey = (await storage.getSetting('BINANCE_API_KEY'))?.value;
+                const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
+
+                if (!apiKey || !secretKey) {
+                  if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+                  return targetBot.answerCallbackQuery(query.id, {
+                    text: "⚠️ Automatic verification is not configured for Binance. Please contact support.",
+                    show_alert: true
+                  });
                 }
 
-                const expectedAmount = payment.amount / 100;
-                const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
+                const timestamp = Date.now();
+                const queryStr = `coin=USDT&timestamp=${timestamp}`;
+                const signature = crypto
+                  .createHmac('sha256', secretKey)
+                  .update(queryStr)
+                  .digest('hex');
 
-                for (const transfer of data.token_transfers) {
-                  const txId = (transfer.transaction_id || '').toLowerCase();
-                  if (usedTxIds.includes(txId)) continue;
+                const res = await axios.get(`https://api.binance.com/sapi/v1/capital/deposit/hisrec?${queryStr}&signature=${signature}`, {
+                  headers: {
+                    'X-MBX-APIKEY': apiKey,
+                    'Content-Type': 'application/json'
+                  }
+                });
 
-                  const toAddr = (transfer.to_address || '').trim().toLowerCase();
-                  const contractAddr = (transfer.contract_address || '').trim();
-                  const blockTs = Number(transfer.block_ts || 0);
+                const deposits = res.data;
+                if (deposits && Array.isArray(deposits)) {
+                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
+                  let usedTxIds: string[] = [];
+                  if (usedTxIdsSetting?.value) {
+                    try {
+                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
+                    } catch (e) {
+                      console.error("Error parsing USED_TXIDS_JSON:", e);
+                    }
+                  }
 
-                  if (toAddr === walletAddress.trim().toLowerCase() &&
-                      contractAddr === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' &&
-                      (transfer.confirmed === true || transfer.contractRet === 'SUCCESS' || transfer.finalResult === 'SUCCESS')) {
+                  const expectedAmount = payment.amount / 100;
+                  const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
 
-                    if (blockTs >= paymentCreatedAtMs - 60000) {
-                      const decimals = transfer.tokenInfo?.tokenDecimal || 6;
-                      const actualAmount = parseFloat(transfer.quant || '0') / Math.pow(10, decimals);
+                  for (const d of deposits) {
+                    const txId = (d.txId || '').toLowerCase();
+                    if (usedTxIds.includes(txId)) continue;
+                    if (d.status !== 1) continue;
+                    if ((d.coin || '').toUpperCase() !== 'USDT') continue;
 
-                      if (actualAmount >= expectedAmount * 0.95 && actualAmount <= expectedAmount * 1.05) {
-                        matched = true;
-                        usedTxIds.push(txId);
-                        await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
+                    const net = (d.network || '').toUpperCase();
+                    if (net !== 'TRX' && net !== 'TRON') continue;
 
-                        const creditAmountCents = Math.round(actualAmount * 100);
-                        await storage.updateTelegramUser(tgUser.id, {
-                          balance: tgUser.balance + creditAmountCents,
-                          lastAction: null,
-                          lastMessageId: null
-                        });
+                    const depAddr = (d.address || '').trim();
+                    if (depAddr.toLowerCase() !== walletAddress.trim().toLowerCase()) continue;
 
-                        await storage.updatePayment(payment.id, {
-                          status: 'completed',
-                          externalId: transfer.transaction_id
-                        });
+                    const insertTime = Number(d.insertTime || 0);
+                    if (insertTime < paymentCreatedAtMs - 120000) continue;
 
-                        if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+                    const actualAmount = parseFloat(d.amount);
+                    if (isNaN(actualAmount) || Math.abs(actualAmount - expectedAmount) >= 0.001) continue;
 
-                        await targetBot.sendMessage(chatId, 
-                          `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
-                          `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                          `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                          { parse_mode: 'HTML' }
-                        );
+                    matched = true;
+                    usedTxIds.push(txId);
+                    await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
 
-                        const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                        io.emit('admin_notification', {
-                          type: 'deposit',
-                          title: 'New TRC20 Deposit',
-                          message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
-                          data: {
-                            paymentId: payment.id,
-                            userId: tgUser.telegramId,
-                            amount: actualAmount,
-                            txId: transfer.transaction_id
-                          }
-                        });
+                    const creditAmountCents = Math.round(actualAmount * 100);
+                    await storage.updateTelegramUser(tgUser.id, {
+                      balance: tgUser.balance + creditAmountCents,
+                      lastAction: null,
+                      lastMessageId: null
+                    });
 
-                        sendAdminPushNotification(
-                          'New TRC20 Deposit',
-                          `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${transfer.transaction_id.substring(0, 10)}...)`
-                        ).catch(console.error);
+                    await storage.updatePayment(payment.id, {
+                      status: 'completed',
+                      externalId: d.txId,
+                      amount: creditAmountCents
+                    });
 
-                        break;
+                    if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+
+                    await targetBot.sendMessage(chatId, 
+                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                      { parse_mode: 'HTML' }
+                    );
+
+                    const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                    io.emit('admin_notification', {
+                      type: 'deposit',
+                      title: 'New TRC20 Deposit',
+                      message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
+                      data: {
+                        paymentId: payment.id,
+                        userId: tgUser.telegramId,
+                        amount: actualAmount,
+                        txId: d.txId
+                      }
+                    });
+
+                    sendAdminPushNotification(
+                      'New TRC20 Deposit',
+                      `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
+                    ).catch(console.error);
+
+                    break;
+                  }
+                }
+              } else {
+                const url = `https://apilist.tronscanapi.com/api/token_trc20/transfers?limit=20&start=0&direction=2&address=${walletAddress.trim()}`;
+                const res = await axios.get(url);
+                const data = res.data;
+
+                if (data && data.token_transfers && data.token_transfers.length > 0) {
+                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
+                  let usedTxIds: string[] = [];
+                  if (usedTxIdsSetting?.value) {
+                    try {
+                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
+                    } catch (e) {
+                      console.error("Error parsing USED_TXIDS_JSON:", e);
+                    }
+                  }
+
+                  const expectedAmount = payment.amount / 100;
+                  const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
+
+                  for (const transfer of data.token_transfers) {
+                    const txId = (transfer.transaction_id || '').toLowerCase();
+                    if (usedTxIds.includes(txId)) continue;
+
+                    const toAddr = (transfer.to_address || '').trim().toLowerCase();
+                    const contractAddr = (transfer.contract_address || '').trim();
+                    const blockTs = Number(transfer.block_ts || 0);
+
+                    if (toAddr === walletAddress.trim().toLowerCase() &&
+                        contractAddr === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' &&
+                        (transfer.confirmed === true || transfer.contractRet === 'SUCCESS' || transfer.finalResult === 'SUCCESS')) {
+
+                      if (blockTs >= paymentCreatedAtMs - 60000) {
+                        const decimals = transfer.tokenInfo?.tokenDecimal || 6;
+                        const actualAmount = parseFloat(transfer.quant || '0') / Math.pow(10, decimals);
+
+                        if (Math.abs(actualAmount - expectedAmount) < 0.001) {
+                          matched = true;
+                          usedTxIds.push(txId);
+                          await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
+
+                          const creditAmountCents = Math.round(actualAmount * 100);
+                          await storage.updateTelegramUser(tgUser.id, {
+                            balance: tgUser.balance + creditAmountCents,
+                            lastAction: null,
+                            lastMessageId: null
+                          });
+
+                          await storage.updatePayment(payment.id, {
+                            status: 'completed',
+                            externalId: transfer.transaction_id,
+                            amount: creditAmountCents
+                          });
+
+                          if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+
+                          await targetBot.sendMessage(chatId, 
+                            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                            { parse_mode: 'HTML' }
+                          );
+
+                          const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                          io.emit('admin_notification', {
+                            type: 'deposit',
+                            title: 'New TRC20 Deposit',
+                            message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
+                            data: {
+                              paymentId: payment.id,
+                              userId: tgUser.telegramId,
+                              amount: actualAmount,
+                              txId: transfer.transaction_id
+                            }
+                          });
+
+                          sendAdminPushNotification(
+                            'New TRC20 Deposit',
+                            `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${transfer.transaction_id.substring(0, 10)}...)`
+                          ).catch(console.error);
+
+                          break;
+                        }
                       }
                     }
                   }
@@ -4565,124 +4774,236 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             }
 
             try {
-              const url = `https://fullnode.mainnet.aptoslabs.com/v1/accounts/${walletAddress.trim()}/transactions?limit=15`;
-              const res = await axios.get(url);
-              const transactions = res.data;
+              const verificationMode = (await storage.getSetting('APTOS_VERIFICATION_MODE'))?.value || 'binance';
               let matched = false;
 
-              if (transactions && Array.isArray(transactions) && transactions.length > 0) {
-                const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                let usedTxIds: string[] = [];
-                if (usedTxIdsSetting?.value) {
-                  try {
-                    usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                  } catch (e) {
-                    console.error("Error parsing USED_TXIDS_JSON:", e);
-                  }
+              if (verificationMode === 'binance') {
+                const apiKey = (await storage.getSetting('BINANCE_API_KEY'))?.value;
+                const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
+
+                if (!apiKey || !secretKey) {
+                  if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+                  return targetBot.answerCallbackQuery(query.id, {
+                    text: "⚠️ Automatic verification is not configured for Binance. Please contact support.",
+                    show_alert: true
+                  });
                 }
 
-                const expectedAmount = payment.amount / 100;
-                const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
-                const normWallet = normalizeAptosAddress(walletAddress);
+                const timestamp = Date.now();
+                const queryStr = `coin=USDT&timestamp=${timestamp}`;
+                const signature = crypto
+                  .createHmac('sha256', secretKey)
+                  .update(queryStr)
+                  .digest('hex');
 
-                for (const tx of transactions) {
-                  const txId = (tx.hash || '').toLowerCase();
-                  if (usedTxIds.includes(txId)) continue;
-                  if (tx.success !== true) continue;
+                const res = await axios.get(`https://api.binance.com/sapi/v1/capital/deposit/hisrec?${queryStr}&signature=${signature}`, {
+                  headers: {
+                    'X-MBX-APIKEY': apiKey,
+                    'Content-Type': 'application/json'
+                  }
+                });
 
-                  const txTimestampMs = Math.floor(parseInt(tx.timestamp || '0') / 1000);
-                  if (txTimestampMs < paymentCreatedAtMs - 60000) continue;
-
-                  let actualAmount = 0;
-                  let found = false;
-
-                  if (tx.payload) {
-                    const payload = tx.payload;
-                    const fn = payload.function || '';
-
-                    if (fn === '0x1::primary_fungible_store::transfer') {
-                      const args = payload.arguments || payload.function_arguments || [];
-                      const recipient = args[1] || '';
-                      const amountStr = args[2] || '0';
-
-                      if (normalizeAptosAddress(recipient) === normWallet) {
-                        actualAmount = parseFloat(amountStr) / 1000000;
-                        found = true;
-                      }
-                    } else if (fn === '0x1::coin::transfer' || fn === '0x1::aptos_account::transfer_coins') {
-                      const args = payload.arguments || payload.function_arguments || [];
-                      const recipient = args[0] || '';
-                      const amountStr = args[1] || '0';
-
-                      if (normalizeAptosAddress(recipient) === normWallet) {
-                        actualAmount = parseFloat(amountStr) / 1000000;
-                        found = true;
-                      }
+                const deposits = res.data;
+                if (deposits && Array.isArray(deposits)) {
+                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
+                  let usedTxIds: string[] = [];
+                  if (usedTxIdsSetting?.value) {
+                    try {
+                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
+                    } catch (e) {
+                      console.error("Error parsing USED_TXIDS_JSON:", e);
                     }
                   }
 
-                  if (!found && tx.events) {
-                    for (const event of tx.events) {
-                      const evType = event.type || '';
-                      if (evType.includes('::coin::DepositEvent') || evType.includes('::fungible_asset::DepositEvent') || evType.includes('Deposit')) {
-                        const guidAddress = event.guid?.account_address || '';
-                        if (normalizeAptosAddress(guidAddress) === normWallet) {
-                          const amountStr = event.data?.amount || '0';
+                  const expectedAmount = payment.amount / 100;
+                  const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
+
+                  for (const d of deposits) {
+                    const txId = (d.txId || '').toLowerCase();
+                    if (usedTxIds.includes(txId)) continue;
+                    if (d.status !== 1) continue;
+                    if ((d.coin || '').toUpperCase() !== 'USDT') continue;
+
+                    const net = (d.network || '').toUpperCase();
+                    if (net !== 'APT' && net !== 'APTOS') continue;
+
+                    const depAddr = (d.address || '').trim();
+                    if (normalizeAptosAddress(depAddr) !== normalizeAptosAddress(walletAddress)) continue;
+
+                    const insertTime = Number(d.insertTime || 0);
+                    if (insertTime < paymentCreatedAtMs - 120000) continue;
+
+                    const actualAmount = parseFloat(d.amount);
+                    if (isNaN(actualAmount) || Math.abs(actualAmount - expectedAmount) >= 0.001) continue;
+
+                    matched = true;
+                    usedTxIds.push(txId);
+                    await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
+
+                    const creditAmountCents = Math.round(actualAmount * 100);
+                    await storage.updateTelegramUser(tgUser.id, {
+                      balance: tgUser.balance + creditAmountCents,
+                      lastAction: null,
+                      lastMessageId: null
+                    });
+
+                    await storage.updatePayment(payment.id, {
+                      status: 'completed',
+                      externalId: d.txId,
+                      amount: creditAmountCents
+                    });
+
+                    if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+
+                    await targetBot.sendMessage(chatId, 
+                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                      { parse_mode: 'HTML' }
+                    );
+
+                    const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                    io.emit('admin_notification', {
+                      type: 'deposit',
+                      title: 'New Aptos Deposit',
+                      message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
+                      data: {
+                        paymentId: payment.id,
+                        userId: tgUser.telegramId,
+                        amount: actualAmount,
+                        txId: d.txId
+                      }
+                    });
+
+                    sendAdminPushNotification(
+                      'New Aptos Deposit',
+                      `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
+                    ).catch(console.error);
+
+                    break;
+                  }
+                }
+              } else {
+                const url = `https://fullnode.mainnet.aptoslabs.com/v1/accounts/${walletAddress.trim()}/transactions?limit=15`;
+                const res = await axios.get(url);
+                const transactions = res.data;
+
+                if (transactions && Array.isArray(transactions) && transactions.length > 0) {
+                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
+                  let usedTxIds: string[] = [];
+                  if (usedTxIdsSetting?.value) {
+                    try {
+                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
+                    } catch (e) {
+                      console.error("Error parsing USED_TXIDS_JSON:", e);
+                    }
+                  }
+
+                  const expectedAmount = payment.amount / 100;
+                  const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
+                  const normWallet = normalizeAptosAddress(walletAddress);
+
+                  for (const tx of transactions) {
+                    const txId = (tx.hash || '').toLowerCase();
+                    if (usedTxIds.includes(txId)) continue;
+                    if (tx.success !== true) continue;
+
+                    const txTimestampMs = Math.floor(parseInt(tx.timestamp || '0') / 1000);
+                    if (txTimestampMs < paymentCreatedAtMs - 60000) continue;
+
+                    let actualAmount = 0;
+                    let found = false;
+
+                    if (tx.payload) {
+                      const payload = tx.payload;
+                      const fn = payload.function || '';
+
+                      if (fn === '0x1::primary_fungible_store::transfer') {
+                        const args = payload.arguments || payload.function_arguments || [];
+                        const recipient = args[1] || '';
+                        const amountStr = args[2] || '0';
+
+                        if (normalizeAptosAddress(recipient) === normWallet) {
                           actualAmount = parseFloat(amountStr) / 1000000;
                           found = true;
-                          break;
+                        }
+                      } else if (fn === '0x1::coin::transfer' || fn === '0x1::aptos_account::transfer_coins') {
+                        const args = payload.arguments || payload.function_arguments || [];
+                        const recipient = args[0] || '';
+                        const amountStr = args[1] || '0';
+
+                        if (normalizeAptosAddress(recipient) === normWallet) {
+                          actualAmount = parseFloat(amountStr) / 1000000;
+                          found = true;
                         }
                       }
                     }
-                  }
 
-                  if (found && actualAmount > 0) {
-                    if (actualAmount >= expectedAmount * 0.95 && actualAmount <= expectedAmount * 1.05) {
-                      matched = true;
-                      usedTxIds.push(txId);
-                      await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
-
-                      const creditAmountCents = Math.round(actualAmount * 100);
-                      await storage.updateTelegramUser(tgUser.id, {
-                        balance: tgUser.balance + creditAmountCents,
-                        lastAction: null,
-                        lastMessageId: null
-                      });
-
-                      await storage.updatePayment(payment.id, {
-                        status: 'completed',
-                        externalId: tx.hash
-                      });
-
-                      if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-
-                      await targetBot.sendMessage(chatId, 
-                        `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
-                        `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                        `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                        `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                        { parse_mode: 'HTML' }
-                      );
-
-                      const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                      io.emit('admin_notification', {
-                        type: 'deposit',
-                        title: 'New Aptos Deposit',
-                        message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
-                        data: {
-                          paymentId: payment.id,
-                          userId: tgUser.telegramId,
-                          amount: actualAmount,
-                          txId: tx.hash
+                    if (!found && tx.events) {
+                      for (const event of tx.events) {
+                        const evType = event.type || '';
+                        if (evType.includes('::coin::DepositEvent') || evType.includes('::fungible_asset::DepositEvent') || evType.includes('Deposit')) {
+                          const guidAddress = event.guid?.account_address || '';
+                          if (normalizeAptosAddress(guidAddress) === normWallet) {
+                            const amountStr = event.data?.amount || '0';
+                            actualAmount = parseFloat(amountStr) / 1000000;
+                            found = true;
+                            break;
+                          }
                         }
-                      });
+                      }
+                    }
 
-                      sendAdminPushNotification(
-                        'New Aptos Deposit',
-                        `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${tx.hash.substring(0, 10)}...)`
-                      ).catch(console.error);
+                    if (found && actualAmount > 0) {
+                      if (Math.abs(actualAmount - expectedAmount) < 0.001) {
+                        matched = true;
+                        usedTxIds.push(txId);
+                        await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
 
-                      break;
+                        const creditAmountCents = Math.round(actualAmount * 100);
+                        await storage.updateTelegramUser(tgUser.id, {
+                          balance: tgUser.balance + creditAmountCents,
+                          lastAction: null,
+                          lastMessageId: null
+                        });
+
+                        await storage.updatePayment(payment.id, {
+                          status: 'completed',
+                          externalId: tx.hash,
+                          amount: creditAmountCents
+                        });
+
+                        if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
+
+                        await targetBot.sendMessage(chatId, 
+                          `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                          `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                          `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                          { parse_mode: 'HTML' }
+                        );
+
+                        const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                        io.emit('admin_notification', {
+                          type: 'deposit',
+                          title: 'New Aptos Deposit',
+                          message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
+                          data: {
+                            paymentId: payment.id,
+                            userId: tgUser.telegramId,
+                            amount: actualAmount,
+                            txId: tx.hash
+                          }
+                        });
+
+                        sendAdminPushNotification(
+                          'New Aptos Deposit',
+                          `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${tx.hash.substring(0, 10)}...)`
+                        ).catch(console.error);
+
+                        break;
+                      }
                     }
                   }
                 }
