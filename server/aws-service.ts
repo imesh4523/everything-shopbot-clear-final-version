@@ -1,5 +1,6 @@
 import { CloudTrailClient, LookupEventsCommand } from "@aws-sdk/client-cloudtrail";
 import { ServiceQuotasClient, GetServiceQuotaCommand } from "@aws-sdk/client-service-quotas";
+import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { storage } from "./storage";
 import axios from "axios";
 
@@ -22,6 +23,45 @@ async function getGeoLocation(ip: string): Promise<string> {
 
 export async function fetchActivity(account: any, lookbackDays: number = 1) {
   let errors: string[] = [];
+
+  // ── STEP 1: Quick credential check using STS GetCallerIdentity ──
+  // Only needs access key + secret key. Fastest and most reliable way to
+  // detect if credentials are valid or account is suspended.
+  try {
+    const stsClient = new STSClient({
+      region: "us-east-1",
+      credentials: {
+        accessKeyId: account.accessKey.trim(),
+        secretAccessKey: account.secretKey.trim(),
+      },
+    });
+    await stsClient.send(new GetCallerIdentityCommand({}));
+    // If we get here, credentials are valid → account is active
+  } catch (stsErr: any) {
+    const stsMsg = stsErr.message || String(stsErr);
+    const isSuspended =
+      stsMsg.includes("InvalidClientTokenId") ||
+      stsMsg.includes("The security token included in the request is invalid") ||
+      stsMsg.includes("UnrecognizedClientException") ||
+      stsMsg.includes("AuthFailure") ||
+      stsMsg.includes("InvalidAccessKeyId") ||
+      stsMsg.includes("Your account is suspended") ||
+      stsMsg.includes("ExpiredToken") ||
+      stsMsg.includes("SignatureDoesNotMatch") ||
+      stsMsg.includes("NotAuthorized") ||
+      stsMsg.includes("AccessDenied");
+
+    if (isSuspended) {
+      await storage.updateAwsAccount(account.id, {
+        status: "suspended",
+        lastError: `Credential check failed: ${stsMsg}`,
+        lastChecked: new Date(),
+      });
+      return { success: false, error: stsMsg };
+    }
+    // Network/other non-auth error — don't change status, just log
+    console.warn(`[AWS-STS] Non-auth error for ${account.name}: ${stsMsg}`);
+  }
 
   // Poll all major AWS regions to ensure we don't miss any regional activity
   const regionsToPoll = [
