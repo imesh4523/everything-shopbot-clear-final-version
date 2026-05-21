@@ -64,9 +64,7 @@ function normalizeAptosAddress(addr: string): string {
 
 async function verifyTrc20Transaction(
   txId: string,
-  walletAddress: string,
-  expectedUsdt: number,
-  tolerancePct = 2.5
+  walletAddress: string
 ): Promise<{ success: boolean; actualAmount?: number; error?: string }> {
   try {
     const res = await axios.get(`https://apilist.tronscanapi.com/api/transaction-info?hash=${txId.trim()}`);
@@ -103,12 +101,8 @@ async function verifyTrc20Transaction(
     const decimals = foundTransfer.decimals || foundTransfer.tokenInfo?.tokenDecimal || 6;
     const actualAmount = parseFloat(amountStr) / Math.pow(10, decimals);
 
-    const minAllowed = expectedUsdt * (1 - tolerancePct / 100);
-    if (actualAmount < minAllowed) {
-      return { 
-        success: false, 
-        error: `Amount paid ($${actualAmount.toFixed(2)}) is below the required minimum ($${minAllowed.toFixed(2)}) for this request.` 
-      };
+    if (actualAmount <= 0) {
+      return { success: false, error: 'Transaction has an invalid amount.' };
     }
 
     return { success: true, actualAmount };
@@ -120,9 +114,7 @@ async function verifyTrc20Transaction(
 
 async function verifyAptosTransaction(
   txId: string,
-  walletAddress: string,
-  expectedUsdt: number,
-  tolerancePct = 2.5
+  walletAddress: string
 ): Promise<{ success: boolean; actualAmount?: number; error?: string }> {
   try {
     const cleanTxId = txId.trim();
@@ -186,12 +178,8 @@ async function verifyAptosTransaction(
       return { success: false, error: 'No USDT deposit to the configured wallet address was found in this transaction.' };
     }
 
-    const minAllowed = expectedUsdt * (1 - tolerancePct / 100);
-    if (actualAmount < minAllowed) {
-      return {
-        success: false,
-        error: `Amount paid ($${actualAmount.toFixed(2)}) is below the required minimum ($${minAllowed.toFixed(2)}) for this request.`
-      };
+    if (actualAmount <= 0) {
+      return { success: false, error: 'Transaction has an invalid amount.' };
     }
 
     return { success: true, actualAmount };
@@ -3481,8 +3469,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         const checkingMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
 
-        const expectedUsdt = payment.amount / 100;
-        const result = await verifyTrc20Transaction(txId, walletAddress, expectedUsdt, 2.5);
+        const result = await verifyTrc20Transaction(txId, walletAddress);
 
         try {
           await targetBot.deleteMessage(chatId, checkingMsg.message_id);
@@ -3586,8 +3573,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         const checkingMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
 
-        const expectedUsdt = payment.amount / 100;
-        const result = await verifyAptosTransaction(txId, walletAddress, expectedUsdt, 2.5);
+        const result = await verifyAptosTransaction(txId, walletAddress);
 
         try {
           await targetBot.deleteMessage(chatId, checkingMsg.message_id);
