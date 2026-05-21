@@ -16,11 +16,18 @@ RUN npm install
 # Copy application source
 COPY . .
 
+# Increase Node.js heap size to 1536MB to prevent OOM during Vite build
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+
 # Build the frontend and backend
 RUN npm run build
+
+# Reset NODE_OPTIONS for runtime (not needed at runtime)
+ENV NODE_OPTIONS=""
 
 # Expose the API port
 EXPOSE 5000
 
 # Start the application
 CMD ["npm", "run", "start"]
+
