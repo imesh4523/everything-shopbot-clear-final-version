@@ -3316,107 +3316,117 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
         }
       } else if (tgUser?.lastAction === 'awaiting_trc20_amount') {
-        const amount = parseFloat(normalizedText || "0");
-
         try {
-          if (tgUser.lastMessageId) {
-            await targetBot.deleteMessage(chatId, tgUser.lastMessageId);
+          const amount = parseFloat(normalizedText || "0");
+
+          try {
+            if (tgUser.lastMessageId) {
+              await targetBot.deleteMessage(chatId, tgUser.lastMessageId);
+            }
+            await targetBot.deleteMessage(chatId, msg.message_id);
+          } catch (e) { }
+
+          if (isNaN(amount) || amount <= 0) {
+            targetBot.sendMessage(chatId, "❌ Invalid amount. Please enter a number.");
+            return;
           }
-          await targetBot.deleteMessage(chatId, msg.message_id);
-        } catch (e) { }
 
-        if (isNaN(amount) || amount <= 0) {
-          targetBot.sendMessage(chatId, "❌ Invalid amount. Please enter a number.");
-          return;
+          const wallet = (await storage.getSetting('TRC20_WALLET_ADDRESS'))?.value || "Not Set";
+
+          const existingPending = await storage.getPendingPaymentByAmount(tgUser.id, Math.round(amount * 100));
+          if (existingPending) {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+            return targetBot.sendMessage(chatId, `⚠️ You already have a pending $${amount} payment. Please pay that one first or wait for it to expire (1 hour).`);
+          }
+
+          const payment = await storage.createPayment({
+            telegramUserId: tgUser.id,
+            amount: Math.round(amount * 100),
+            paymentMethod: 'trc20',
+            status: 'pending'
+          });
+
+          await storage.updateTelegramUserByChatId(chatId.toString(), {
+            lastAction: `awaiting_trc20_txid_${payment.id}`
+          });
+
+          const responseMsg = `🌐 <b>TRC20 (USDT) Deposit</b>\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
+            `📥 Wallet Address: <code>${wallet}</code>\n\n` +
+            `⚠️ <b>Instructions:</b>\n` +
+            `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (TRC20 network) to the address above.\n` +
+            `2. Once transaction is complete, copy and send your <b>Transaction Hash / ID (TXID)</b> below.`;
+
+          const keyboard = [
+            [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_trc20` }],
+            [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }]
+          ];
+
+          await targetBot.sendMessage(chatId, responseMsg, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: keyboard }
+          });
+        } catch (err: any) {
+          console.error("Error initiating TRC20 payment:", err);
+          targetBot.sendMessage(chatId, `❌ Failed to initiate TRC20 deposit: ${err.message || err}`);
         }
-
-        const wallet = (await storage.getSetting('TRC20_WALLET_ADDRESS'))?.value || "Not Set";
-
-        const existingPending = await storage.getPendingPaymentByAmount(tgUser.id, Math.round(amount * 100));
-        if (existingPending) {
-          await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-          return targetBot.sendMessage(chatId, `⚠️ You already have a pending $${amount} payment. Please pay that one first or wait for it to expire (1 hour).`);
-        }
-
-        const payment = await storage.createPayment({
-          telegramUserId: tgUser.id,
-          amount: Math.round(amount * 100),
-          paymentMethod: 'trc20',
-          status: 'pending'
-        });
-
-        await storage.updateTelegramUserByChatId(chatId.toString(), {
-          lastAction: `awaiting_trc20_txid_${payment.id}`
-        });
-
-        const responseMsg = `<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n` +
-          `━━━━━━━━━━━━━━━\n` +
-          `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-          `📥 Wallet Address: <code>${wallet}</code>\n\n` +
-          `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
-          `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (TRC20 network) to the address above.\n` +
-          `2. Once transaction is complete, copy and send your <b>Transaction Hash / ID (TXID)</b> below.`;
-
-        const keyboard = [
-          [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_${wallet}` }],
-          [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }]
-        ];
-
-        targetBot.sendMessage(chatId, responseMsg, {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: keyboard }
-        });
       } else if (tgUser?.lastAction === 'awaiting_aptos_amount') {
-        const amount = parseFloat(normalizedText || "0");
-
         try {
-          if (tgUser.lastMessageId) {
-            await targetBot.deleteMessage(chatId, tgUser.lastMessageId);
+          const amount = parseFloat(normalizedText || "0");
+
+          try {
+            if (tgUser.lastMessageId) {
+              await targetBot.deleteMessage(chatId, tgUser.lastMessageId);
+            }
+            await targetBot.deleteMessage(chatId, msg.message_id);
+          } catch (e) { }
+
+          if (isNaN(amount) || amount <= 0) {
+            targetBot.sendMessage(chatId, "❌ Invalid amount. Please enter a number.");
+            return;
           }
-          await targetBot.deleteMessage(chatId, msg.message_id);
-        } catch (e) { }
 
-        if (isNaN(amount) || amount <= 0) {
-          targetBot.sendMessage(chatId, "❌ Invalid amount. Please enter a number.");
-          return;
+          const wallet = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value || "Not Set";
+
+          const existingPending = await storage.getPendingPaymentByAmount(tgUser.id, Math.round(amount * 100));
+          if (existingPending) {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+            return targetBot.sendMessage(chatId, `⚠️ You already have a pending $${amount} payment. Please pay that one first or wait for it to expire (1 hour).`);
+          }
+
+          const payment = await storage.createPayment({
+            telegramUserId: tgUser.id,
+            amount: Math.round(amount * 100),
+            paymentMethod: 'aptos',
+            status: 'pending'
+          });
+
+          await storage.updateTelegramUserByChatId(chatId.toString(), {
+            lastAction: `awaiting_aptos_txid_${payment.id}`
+          });
+
+          const responseMsg = `⚡ <b>Aptos (USDT) Deposit</b>\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
+            `📥 Wallet Address: <code>${wallet}</code>\n\n` +
+            `⚠️ <b>Instructions:</b>\n` +
+            `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (Aptos network) to the address above.\n` +
+            `2. Once transaction is complete, copy and send your <b>Transaction Hash / ID (TXID)</b> below.`;
+
+          const keyboard = [
+            [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_aptos` }],
+            [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }]
+          ];
+
+          await targetBot.sendMessage(chatId, responseMsg, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: keyboard }
+          });
+        } catch (err: any) {
+          console.error("Error initiating Aptos payment:", err);
+          targetBot.sendMessage(chatId, `❌ Failed to initiate Aptos deposit: ${err.message || err}`);
         }
-
-        const wallet = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value || "Not Set";
-
-        const existingPending = await storage.getPendingPaymentByAmount(tgUser.id, Math.round(amount * 100));
-        if (existingPending) {
-          await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-          return targetBot.sendMessage(chatId, `⚠️ You already have a pending $${amount} payment. Please pay that one first or wait for it to expire (1 hour).`);
-        }
-
-        const payment = await storage.createPayment({
-          telegramUserId: tgUser.id,
-          amount: Math.round(amount * 100),
-          paymentMethod: 'aptos',
-          status: 'pending'
-        });
-
-        await storage.updateTelegramUserByChatId(chatId.toString(), {
-          lastAction: `awaiting_aptos_txid_${payment.id}`
-        });
-
-        const responseMsg = `<tg-emoji emoji-id="5373123633415695601">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n` +
-          `━━━━━━━━━━━━━━━\n` +
-          `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-          `📥 Wallet Address: <code>${wallet}</code>\n\n` +
-          `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
-          `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (Aptos network) to the address above.\n` +
-          `2. Once transaction is complete, copy and send your <b>Transaction Hash / ID (TXID)</b> below.`;
-
-        const keyboard = [
-          [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_${wallet}` }],
-          [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }]
-        ];
-
-        targetBot.sendMessage(chatId, responseMsg, {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: keyboard }
-        });
       } else if (tgUser?.lastAction?.startsWith('awaiting_trc20_txid_')) {
         const paymentId = parseInt(tgUser.lastAction.split('_')[3]);
         const txId = normalizedText?.trim() || "";
@@ -3467,7 +3477,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
-        const checkingMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
+        const checkingMsg = await targetBot.sendMessage(chatId, `⏳ <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
 
         const result = await verifyTrc20Transaction(txId, walletAddress);
 
@@ -3493,10 +3503,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           targetBot.sendMessage(chatId, 
-            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+            `✅ <b>TRC20 Payment Verified successfully!</b>\n\n` +
             `💰 Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
             `👤 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+            `Thank you for your purchase! 🤍`,
             { parse_mode: 'HTML' }
           );
 
@@ -3571,7 +3581,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
-        const checkingMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
+        const checkingMsg = await targetBot.sendMessage(chatId, `⏳ <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`, { parse_mode: 'HTML' });
 
         const result = await verifyAptosTransaction(txId, walletAddress);
 
@@ -3597,10 +3607,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           targetBot.sendMessage(chatId, 
-            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+            `✅ <b>Aptos Payment Verified successfully!</b>\n\n` +
             `💰 Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
             `👤 Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+            `Thank you for your purchase! 🤍`,
             { parse_mode: 'HTML' }
           );
 
@@ -3730,7 +3740,12 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>Pay ID sent!</b> You can now long-press to copy it. <tg-emoji emoji-id="5231102735817918643">📋</tg-emoji>`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${payIdToCopy}</code>`, { parse_mode: 'HTML' });
       } else if (data.startsWith('copy_wallet_')) {
-        const walletToCopy = data.substring(12);
+        let walletToCopy = data.substring(12);
+        if (walletToCopy === 'trc20') {
+          walletToCopy = (await storage.getSetting('TRC20_WALLET_ADDRESS'))?.value || "Not Set";
+        } else if (walletToCopy === 'aptos') {
+          walletToCopy = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value || "Not Set";
+        }
         await targetBot.sendMessage(chatId, `📋 <b>Wallet Address sent!</b> Tap/long-press below to copy:`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${walletToCopy}</code>`, { parse_mode: 'HTML' });
       } else if (data.startsWith('copy_amount_')) {
@@ -4162,8 +4177,8 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         if (row1.length > 0) keyboard.push(row1);
 
         const row2: any[] = [];
-        if (trc20Enabled) row2.push({ text: '<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> TRC20 (USDT)', callback_data: 'payment_trc20' });
-        if (aptosEnabled) row2.push({ text: '<tg-emoji emoji-id="5373123633415695601">⚡</tg-emoji> Aptos (USDT)', callback_data: 'payment_aptos' });
+        if (trc20Enabled) row2.push({ text: '🌐 TRC20 (USDT)', callback_data: 'payment_trc20' });
+        if (aptosEnabled) row2.push({ text: '⚡ Aptos (USDT)', callback_data: 'payment_aptos' });
         if (row2.length > 0) keyboard.push(row2);
 
         if (keyboard.length === 0) {
@@ -4220,7 +4235,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return targetBot.sendMessage(chatId, '❌ TRC20 wallet not configured. Contact support.');
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `💰 <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD 💵):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -4234,7 +4249,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return targetBot.sendMessage(chatId, '❌ Aptos wallet not configured. Contact support.');
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5296437653770608702">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `⚡ <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD 💵):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
