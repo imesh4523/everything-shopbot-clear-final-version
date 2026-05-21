@@ -177,7 +177,11 @@ export class DatabaseStorage implements IStorage {
       { key: "STORE_NAME", value: "Shopeefy" },
       { key: "SUPPORT_USERNAME", value: "@rochana_imesh" },
       { key: "SUPPORT_BTN_TEXT", value: "Write to Support" },
-      { key: "LOADING_TEXT", value: "Shopeefy..." }
+      { key: "LOADING_TEXT", value: "Shopeefy..." },
+      { key: "TRC20_WALLET_ADDRESS", value: "" },
+      { key: "APTOS_WALLET_ADDRESS", value: "" },
+      { key: "PAYMENT_TRC20_ENABLED", value: "false" },
+      { key: "PAYMENT_APTOS_ENABLED", value: "false" }
     ];
 
     for (const s of defaultSettings) {

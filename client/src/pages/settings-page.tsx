@@ -81,6 +81,22 @@ export default function SettingsPage() {
     queryKey: ["/api/settings/PAYMENT_CRYPTOMUS_ENABLED"],
   });
 
+  const { data: trc20EnabledSetting, isLoading: isTrc20EnabledLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/PAYMENT_TRC20_ENABLED"],
+  });
+
+  const { data: aptosEnabledSetting, isLoading: isAptosEnabledLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/PAYMENT_APTOS_ENABLED"],
+  });
+
+  const { data: trc20WalletSetting, isLoading: isTrc20WalletLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/TRC20_WALLET_ADDRESS"],
+  });
+
+  const { data: aptosWalletSetting, isLoading: isAptosWalletLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/APTOS_WALLET_ADDRESS"],
+  });
+
   const { data: automationEnabledSetting, isLoading: isAutomationEnabledLoading } = useQuery<{ key: string, value: string }>({
     queryKey: ["/api/settings/AUTOMATION_ENABLED"],
   });
@@ -110,10 +126,15 @@ export default function SettingsPage() {
     isFaqLoading || isHowToBuyLoading || isHowToDepositLoading || isBinanceEnabledLoading ||
     isCryptomusEnabledLoading || isAutomationEnabledLoading ||
     isSpecialOffersEnabledLoading || isStoreNameLoading || isSupportUsernameLoading ||
-    isSupportBtnTextLoading || isLoadingTextLoading;
+    isSupportBtnTextLoading || isLoadingTextLoading ||
+    isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading;
 
   const [binanceEnabled, setBinanceEnabled] = useState(true);
   const [cryptomusEnabled, setCryptomusEnabled] = useState(true);
+  const [trc20Enabled, setTrc20Enabled] = useState(false);
+  const [aptosEnabled, setAptosEnabled] = useState(false);
+  const [trc20Wallet, setTrc20Wallet] = useState("");
+  const [aptosWallet, setAptosWallet] = useState("");
   const [automationEnabled, setAutomationEnabled] = useState(true);
   const [specialOffersEnabled, setSpecialOffersEnabled] = useState(true);
 
@@ -124,6 +145,22 @@ export default function SettingsPage() {
   useEffect(() => {
     if (cryptomusEnabledSetting?.value !== undefined) setCryptomusEnabled(cryptomusEnabledSetting.value === "true");
   }, [cryptomusEnabledSetting]);
+
+  useEffect(() => {
+    if (trc20EnabledSetting?.value !== undefined) setTrc20Enabled(trc20EnabledSetting.value === "true");
+  }, [trc20EnabledSetting]);
+
+  useEffect(() => {
+    if (aptosEnabledSetting?.value !== undefined) setAptosEnabled(aptosEnabledSetting.value === "true");
+  }, [aptosEnabledSetting]);
+
+  useEffect(() => {
+    if (trc20WalletSetting?.value !== undefined) setTrc20Wallet(trc20WalletSetting.value);
+  }, [trc20WalletSetting]);
+
+  useEffect(() => {
+    if (aptosWalletSetting?.value !== undefined) setAptosWallet(aptosWalletSetting.value);
+  }, [aptosWalletSetting]);
 
   useEffect(() => {
     if (automationEnabledSetting?.value !== undefined) setAutomationEnabled(automationEnabledSetting.value === "true");
@@ -325,6 +362,40 @@ export default function SettingsPage() {
       toast({
         title: "Binance Secret Key Updated",
         description: "Binance Secret Key has been saved.",
+      });
+    }
+  });
+
+  const trc20WalletMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "TRC20_WALLET_ADDRESS",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/TRC20_WALLET_ADDRESS"] });
+      toast({
+        title: "TRC20 Wallet Updated",
+        description: "TRC20 wallet address has been updated.",
+      });
+    }
+  });
+
+  const aptosWalletMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "APTOS_WALLET_ADDRESS",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/APTOS_WALLET_ADDRESS"] });
+      toast({
+        title: "Aptos Wallet Updated",
+        description: "Aptos wallet address has been updated.",
       });
     }
   });
@@ -974,6 +1045,92 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-[10px] text-white/40">Required for automated payment verification.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-white/5" />
+
+            {/* TRC20 Section */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-red-500">TRC20 (USDT) Integration</h3>
+                <Button
+                  variant={trc20Enabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    const newValue = !trc20Enabled;
+                    setTrc20Enabled(newValue);
+                    togglePaymentMutation.mutate({ key: "PAYMENT_TRC20_ENABLED", value: newValue.toString() });
+                  }}
+                  className={trc20Enabled ? "bg-green-500 hover:bg-green-600" : "border-white/20"}
+                >
+                  {trc20Enabled ? "Enabled" : "Disabled"}
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-white/50 uppercase tracking-widest">TRC20 Wallet Address</Label>
+                  <div className="flex gap-3">
+                    <Input
+                      placeholder="Enter TRC20 USDT Wallet Address..."
+                      className="glass-panel border-white/10 bg-white/5 text-white h-12"
+                      value={trc20Wallet}
+                      onChange={(e) => setTrc20Wallet(e.target.value)}
+                    />
+                    <Button
+                      onClick={() => trc20WalletMutation.mutate(trc20Wallet)}
+                      disabled={trc20WalletMutation.isPending}
+                      className="h-12 px-4 rounded-xl bg-gradient-to-r from-red-500 to-red-600 font-bold"
+                    >
+                      <Save className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-white/40">USDT (TRC20) deposit address on the Tron network.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-white/5" />
+
+            {/* Aptos Section */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-cyan-500">Aptos (USDT) Integration</h3>
+                <Button
+                  variant={aptosEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    const newValue = !aptosEnabled;
+                    setAptosEnabled(newValue);
+                    togglePaymentMutation.mutate({ key: "PAYMENT_APTOS_ENABLED", value: newValue.toString() });
+                  }}
+                  className={aptosEnabled ? "bg-green-500 hover:bg-green-600" : "border-white/20"}
+                >
+                  {aptosEnabled ? "Enabled" : "Disabled"}
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-white/50 uppercase tracking-widest">Aptos Wallet Address</Label>
+                  <div className="flex gap-3">
+                    <Input
+                      placeholder="Enter Aptos USDT Wallet Address..."
+                      className="glass-panel border-white/10 bg-white/5 text-white h-12"
+                      value={aptosWallet}
+                      onChange={(e) => setAptosWallet(e.target.value)}
+                    />
+                    <Button
+                      onClick={() => aptosWalletMutation.mutate(aptosWallet)}
+                      disabled={aptosWalletMutation.isPending}
+                      className="h-12 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 font-bold"
+                    >
+                      <Save className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-white/40">USDT (Aptos) deposit address on the Aptos network.</p>
                 </div>
               </div>
             </div>
