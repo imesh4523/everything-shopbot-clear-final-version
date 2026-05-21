@@ -3434,11 +3434,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_trc20_txid_${payment.id}`
           });
 
-          const responseMsg = `🌐 <b>TRC20 (USDT) Deposit</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-            `📥 Wallet Address:\n<code>${wallet}</code>\n\n` +
-            `⚠️ <b>Instructions:</b>\n` +
+            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
+            `<tg-emoji emoji-id="6276090299232031662">📥</tg-emoji> Wallet Address:\n<code>${wallet}</code>\n\n` +
+            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
             `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (TRC20 network) to the address above.\n` +
             `2. Once transaction is complete, click <b>Check payment</b> below or send your <b>Transaction Hash / ID (TXID)</b> directly in the chat.`;
 
@@ -3491,11 +3491,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_aptos_txid_${payment.id}`
           });
 
-          const responseMsg = `⚡ <b>Aptos (USDT) Deposit</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `💰 Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-            `📥 Wallet Address:\n<code>${wallet}</code>\n\n` +
-            `⚠️ <b>Instructions:</b>\n` +
+            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
+            `<tg-emoji emoji-id="6276090299232031662">📥</tg-emoji> Wallet Address:\n<code>${wallet}</code>\n\n` +
+            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
             `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (Aptos network) to the address above.\n` +
             `2. Once transaction is complete, click <b>Check payment</b> below or send your <b>Transaction Hash / ID (TXID)</b> directly in the chat.`;
 
@@ -4335,7 +4335,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return targetBot.sendMessage(chatId, '❌ TRC20 wallet not configured. Contact support.');
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `💰 <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD 💵):`,
+          `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -4349,7 +4349,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return targetBot.sendMessage(chatId, '❌ Aptos wallet not configured. Contact support.');
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `⚡ <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD 💵):`,
+          `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
