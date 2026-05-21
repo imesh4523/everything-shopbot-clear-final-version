@@ -17,9 +17,13 @@ RUN npm install --production
 COPY dist/ ./dist/
 COPY public/ ./public/
 
+# Set production environment
+ENV NODE_ENV=production
+
 # Expose the API port
 EXPOSE 5000
 
-# Start the application
-CMD ["npm", "run", "start"]
+# Start the application directly with node (no npm run start)
+CMD ["node", "dist/index.cjs"]
+
 
