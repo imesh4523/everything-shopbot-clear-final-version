@@ -3434,13 +3434,15 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_trc20_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-            `<tg-emoji emoji-id="6276090299232031662">📥</tg-emoji> Wallet Address:\n<code>${wallet}</code>\n\n` +
-            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
-            `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (TRC20 network) to the address above.\n` +
-            `2. Once transaction is complete, click <b>Check payment</b> below or send your <b>Transaction Hash / ID (TXID)</b> directly in the chat.`;
+            `<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> TRC20 Address: <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
+            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
+            `• Please transfer this <b>exact amount</b>.\n` +
+            `• You <b>MUST</b> use the <b>TRC20 network</b>.\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
           const keyboard = [
             [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_trc20` }],
@@ -3448,10 +3450,28 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             [{ text: '🔄 Check payment', callback_data: `check_payment_${payment.id}` }]
           ];
 
-          await targetBot.sendMessage(chatId, responseMsg, {
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: keyboard }
-          });
+          const imagePath = path.resolve(process.cwd(), 'public/assets/usdt_trc20.png');
+          try {
+            if (fs.existsSync(imagePath)) {
+              const photoStream = fs.createReadStream(imagePath);
+              await targetBot.sendPhoto(chatId, photoStream, {
+                caption: responseMsg,
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: keyboard }
+              });
+            } else {
+              await targetBot.sendMessage(chatId, responseMsg, {
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: keyboard }
+              });
+            }
+          } catch (photoErr) {
+            console.error("Failed to send TRC20 photo:", photoErr);
+            await targetBot.sendMessage(chatId, responseMsg, {
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: keyboard }
+            });
+          }
         } catch (err: any) {
           console.error("Error initiating TRC20 payment:", err);
           targetBot.sendMessage(chatId, `❌ Failed to initiate TRC20 deposit: ${err.message || err}`);
@@ -3491,13 +3511,15 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_aptos_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Amount to Pay: <code>${amount.toFixed(2)} USDT</code>\n` +
-            `<tg-emoji emoji-id="6276090299232031662">📥</tg-emoji> Wallet Address:\n<code>${wallet}</code>\n\n` +
-            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>Instructions:</b>\n` +
-            `1. Send exactly <b>${amount.toFixed(2)} USDT</b> (Aptos network) to the address above.\n` +
-            `2. Once transaction is complete, click <b>Check payment</b> below or send your <b>Transaction Hash / ID (TXID)</b> directly in the chat.`;
+            `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> Aptos Address: <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
+            `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
+            `• Please transfer this <b>exact amount</b>.\n` +
+            `• You <b>MUST</b> use the <b>Aptos network</b>.\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
           const keyboard = [
             [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_aptos` }],
@@ -3505,10 +3527,28 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             [{ text: '🔄 Check payment', callback_data: `check_payment_${payment.id}` }]
           ];
 
-          await targetBot.sendMessage(chatId, responseMsg, {
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: keyboard }
-          });
+          const imagePath = path.resolve(process.cwd(), 'public/assets/usdt_aptos.png');
+          try {
+            if (fs.existsSync(imagePath)) {
+              const photoStream = fs.createReadStream(imagePath);
+              await targetBot.sendPhoto(chatId, photoStream, {
+                caption: responseMsg,
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: keyboard }
+              });
+            } else {
+              await targetBot.sendMessage(chatId, responseMsg, {
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: keyboard }
+              });
+            }
+          } catch (photoErr) {
+            console.error("Failed to send Aptos photo:", photoErr);
+            await targetBot.sendMessage(chatId, responseMsg, {
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: keyboard }
+            });
+          }
         } catch (err: any) {
           console.error("Error initiating Aptos payment:", err);
           targetBot.sendMessage(chatId, `❌ Failed to initiate Aptos deposit: ${err.message || err}`);
