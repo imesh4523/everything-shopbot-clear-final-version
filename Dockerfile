@@ -9,21 +9,13 @@ RUN apt-get update && apt-get install -y curl gnupg2 lsb-release \
 
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package files and install production dependencies only
 COPY package*.json ./
-RUN npm install
+RUN npm install --production
 
-# Copy application source
-COPY . .
-
-# Increase Node.js heap size to 1536MB to prevent OOM during Vite build
-ENV NODE_OPTIONS="--max-old-space-size=1536"
-
-# Build the frontend and backend
-RUN npm run build
-
-# Reset NODE_OPTIONS for runtime (not needed at runtime)
-ENV NODE_OPTIONS=""
+# Copy pre-built dist and public assets (build done locally, no OOM risk)
+COPY dist/ ./dist/
+COPY public/ ./public/
 
 # Expose the API port
 EXPOSE 5000
