@@ -3832,7 +3832,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
-                  await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
+                  await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id, lastAction: `awaiting_trc20_txid_${payment.id}_0` });
                   setTimeout(() => {
                     targetBot.deleteMessage(chatId, sentMsg.message_id).catch(() => { });
                   }, 15000);
@@ -4113,7 +4113,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
-                  await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
+                  await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id, lastAction: `awaiting_aptos_txid_${payment.id}_0` });
                   setTimeout(() => {
                     targetBot.deleteMessage(chatId, sentMsg.message_id).catch(() => { });
                   }, 15000);
@@ -4945,7 +4945,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           await storage.updateTelegramUserByChatId(chatId.toString(), {
-            lastAction: `awaiting_trc20_txid_${payment.id}`
+            lastAction: `awaiting_trc20_txid_${payment.id}_0`
           });
 
           const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
@@ -5013,7 +5013,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           });
 
           await storage.updateTelegramUserByChatId(chatId.toString(), {
-            lastAction: `awaiting_aptos_txid_${payment.id}`
+            lastAction: `awaiting_aptos_txid_${payment.id}_0`
           });
 
           const responseMsg = `<tg-emoji emoji-id="5798849051017352095">⚡</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
@@ -5050,7 +5050,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           targetBot.sendMessage(chatId, `❌ Failed to initiate Aptos deposit: ${err.message || err}`);
         }
       } else if (tgUser?.lastAction?.startsWith('awaiting_trc20_txid_')) {
-        const paymentId = parseInt(tgUser.lastAction.split('_')[3]);
+        const parts = tgUser.lastAction.split('_');
+        const paymentId = parseInt(parts[3]);
+        const attempts = parts.length > 4 ? parseInt(parts[4]) : 0;
         const txId = normalizedText?.trim() || "";
 
         try {
@@ -5181,6 +5183,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             } else {
               await storage.updatePayment(payment.id, { status: 'pending' });
               const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> This Transaction ID (TXID) has already been used.`, { parse_mode: 'HTML' });
+              const newAttempts = attempts + 1;
+              if (newAttempts >= 3) {
+                await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+                await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              } else {
+                await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
+              }
               setTimeout(() => {
                 targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
               }, 15000);
@@ -5188,6 +5197,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           } else {
             await storage.updatePayment(payment.id, { status: 'pending' });
             const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+            const newAttempts = attempts + 1;
+            if (newAttempts >= 3) {
+              await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+              await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            } else {
+              await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
+            }
             setTimeout(() => {
               targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
             }, 15000);
@@ -5195,12 +5211,21 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         } catch (err: any) {
           await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
           const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${err.message || err}`, { parse_mode: 'HTML' });
+          const newAttempts = attempts + 1;
+          if (newAttempts >= 3) {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+            await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+          } else {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
+          }
           setTimeout(() => {
             targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
           }, 15000);
         }
       } else if (tgUser?.lastAction?.startsWith('awaiting_aptos_txid_')) {
-        const paymentId = parseInt(tgUser.lastAction.split('_')[3]);
+        const parts = tgUser.lastAction.split('_');
+        const paymentId = parseInt(parts[3]);
+        const attempts = parts.length > 4 ? parseInt(parts[4]) : 0;
         const txId = normalizedText?.trim() || "";
 
         try {
@@ -5331,6 +5356,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             } else {
               await storage.updatePayment(payment.id, { status: 'pending' });
               const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> This Transaction ID (TXID) has already been used.`, { parse_mode: 'HTML' });
+              const newAttempts = attempts + 1;
+              if (newAttempts >= 3) {
+                await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+                await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              } else {
+                await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
+              }
               setTimeout(() => {
                 targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
               }, 15000);
@@ -5338,6 +5370,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           } else {
             await storage.updatePayment(payment.id, { status: 'pending' });
             const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+            const newAttempts = attempts + 1;
+            if (newAttempts >= 3) {
+              await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+              await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            } else {
+              await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
+            }
             setTimeout(() => {
               targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
             }, 15000);
@@ -5345,6 +5384,13 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         } catch (err: any) {
           await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
           const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${err.message || err}`, { parse_mode: 'HTML' });
+          const newAttempts = attempts + 1;
+          if (newAttempts >= 3) {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
+            await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+          } else {
+            await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
+          }
           setTimeout(() => {
             targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
           }, 15000);
