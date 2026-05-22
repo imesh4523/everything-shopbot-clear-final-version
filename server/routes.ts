@@ -3314,7 +3314,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
         const row2: any[] = [];
         if (trc20Enabled) row2.push({ text: 'TRC20 (USDT)', callback_data: 'payment_trc20', icon_custom_emoji_id: '5377620962390857342' });
-        if (aptosEnabled) row2.push({ text: 'Aptos (USDT)', callback_data: 'payment_aptos', icon_custom_emoji_id: '5377620962390857342' });
+        if (aptosEnabled) row2.push({ text: 'Aptos (USDT)', callback_data: 'payment_aptos', icon_custom_emoji_id: '5798849051017352095' });
         if (row2.length > 0) keyboard.push(row2);
 
         if (keyboard.length === 0) {
@@ -3397,7 +3397,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5206715082582533386">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `<tg-emoji emoji-id="5798849051017352095">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -5016,7 +5016,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_aptos_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5206715082582533386">⚡</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5798849051017352095">⚡</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
             `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Address:</b> <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
