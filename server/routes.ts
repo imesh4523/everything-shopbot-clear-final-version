@@ -370,7 +370,7 @@ export async function registerRoutes(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false,
       maxAge: sessionTtl,
     },
   }));
@@ -1142,37 +1142,14 @@ app.get(api.orders.list.path, isAuth, async (req, res) => {
 // Dashboard Stats Endpoint
 app.get(api.stats.get.path, isAuth, async (req, res) => {
   try {
-    const allOrders = await storage.getOrders();
-    const now = new Date();
-    const dayStart = new Date(now);
-    dayStart.setHours(0, 0, 0, 0);
-
-    const completedOrders = allOrders.filter(o => o.status === 'completed');
-    const dailyOrders = completedOrders.filter(o => o.createdAt && new Date(o.createdAt) >= dayStart);
-
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.product?.price || 0), 0);
-    const dailyRevenue = dailyOrders.reduce((sum, o) => sum + (o.product?.price || 0), 0);
-
-    // Count available products (those with at least 1 available credential)
-    const allProducts = await storage.getProducts();
-    let availableProducts = 0;
-    for (const p of allProducts) {
-      const creds = await storage.getCredentialsByProduct(p.id);
-      if (creds.some(c => c.status === 'available')) availableProducts++;
-    }
-
-    res.json({
-      totalSales: completedOrders.length,
-      dailySales: dailyOrders.length,
-      totalRevenue,
-      dailyRevenue,
-      availableProducts,
-    });
+    const stats = await storage.getStats();
+    res.json(stats);
   } catch (err: any) {
     console.error("Stats error:", err);
     res.status(500).json({ message: "Failed to fetch stats" });
   }
 });
+
 
 
 app.get(api.broadcast.channels.list.path, isAuth, async (req, res) => {

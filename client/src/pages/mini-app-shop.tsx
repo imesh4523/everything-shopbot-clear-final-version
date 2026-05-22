@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog,
@@ -249,6 +250,7 @@ function LiveTOTP({ secret, onCopy }: { secret: string, onCopy: (text: string) =
 }
 
 export default function MiniAppShop() {
+  const { theme } = useTheme();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("store");
   const [selectedProduct, setSelectedProduct] = useState<(Product & { stockCount?: number }) | null>(null);
@@ -304,11 +306,28 @@ export default function MiniAppShop() {
   useEffect(() => {
     expandTelegramWebApp();
     const webApp = (window as any).Telegram?.WebApp;
+    const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
     if (webApp) {
-      webApp.headerColor = '#ffffff';
-      webApp.backgroundColor = '#f8f7ff';
+      if (isDark) {
+        webApp.headerColor = '#121212';
+        webApp.backgroundColor = '#121212';
+      } else {
+        webApp.headerColor = '#ffffff';
+        webApp.backgroundColor = '#f8f7ff';
+      }
     }
-  }, []);
+
+    if (isDark) {
+      document.body.classList.add('tg-body');
+    } else {
+      document.body.classList.remove('tg-body');
+    }
+
+    return () => {
+      document.body.classList.remove('tg-body');
+    };
+  }, [theme]);
 
 
   const copyToClipboard = (text: string) => {

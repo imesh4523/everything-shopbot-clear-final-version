@@ -123,3 +123,8 @@
   --input: 0 0% 15%;
   --bg-gradient: #121212;
 }
+
+.dark body.tg-body {
+  --bg-gradient: #121212 !important;
+  background: #121212 !important;
+}
