@@ -895,7 +895,7 @@ export default function MiniAppShop() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-background text-neutral-900 dark:text-foreground font-sans selection:bg-purple-200 pb-32">
+    <div className="tg-mini-app min-h-screen bg-white dark:bg-background text-neutral-900 dark:text-foreground font-sans selection:bg-purple-200 pb-32">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-background/80 backdrop-blur-2xl border-b border-purple-50/50 dark:border-white/10 px-6 py-5">
         <div className="flex items-center justify-between max-w-md mx-auto">
