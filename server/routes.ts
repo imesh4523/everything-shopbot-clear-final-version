@@ -3376,7 +3376,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -3394,7 +3394,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -3773,7 +3773,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               if (!matched) {
                 if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
+                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
@@ -4032,7 +4032,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               if (!matched) {
                 if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat to verify manually.`;
+                const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
@@ -4795,11 +4795,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           status: 'pending'
         });
 
-        const response = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: ${method}</b>\n` +
+        const response = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: ${method}</b>\n` +
           `━━━━━━━━━━━━━━━\n` +
-          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> ${method} Pay ID: <code>${payId}</code>\n` +
-          `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount}$</code>\n` +
-          `<tg-emoji emoji-id="5334982154868783692">📝</tg-emoji> In Note: <code>${userId}</code>\n\n` +
+          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>${method} Pay ID:</b> <code>${payId}</code>\n` +
+          `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount}$</code>\n` +
+          `<tg-emoji emoji-id="5334982154868783692">📝</tg-emoji> <b>In Note:</b> <code>${userId}</code>\n\n` +
           `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
           `• Please transfer this <b>exact amount</b>.\n` +
           `• You <b>MUST</b> include your User ID in the Note field.\n` +
@@ -4867,10 +4867,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_trc20_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> TRC20 Address: <code>${wallet}</code>\n` +
-            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
+            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Address:</b> <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
             `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
             `• Please transfer this <b>exact amount</b>.\n` +
             `• You <b>MUST</b> use the <b>TRC20 network</b>.\n` +
@@ -4879,7 +4879,6 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           const keyboard = [
             [{ text: `Copy Wallet Address`, callback_data: `copy_wallet_trc20`, icon_custom_emoji_id: '5334982154868783692' }],
-            [{ text: `Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}`, icon_custom_emoji_id: '5334982154868783692' }],
             [{ text: 'Check payment', callback_data: `check_payment_${payment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
           ] as any[][];
 
@@ -4936,10 +4935,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_aptos_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Aptos Address: <code>${wallet}</code>\n` +
-            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
+            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Address:</b> <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
             `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
             `• Please transfer this <b>exact amount</b>.\n` +
             `• You <b>MUST</b> use the <b>Aptos network</b>.\n` +
@@ -4948,7 +4947,6 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           const keyboard = [
             [{ text: `Copy Wallet Address`, callback_data: `copy_wallet_aptos`, icon_custom_emoji_id: '5334982154868783692' }],
-            [{ text: `Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}`, icon_custom_emoji_id: '5334982154868783692' }],
             [{ text: 'Check payment', callback_data: `check_payment_${payment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
           ] as any[][];
 
@@ -5079,7 +5077,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           ).catch(console.error);
 
         } else {
-          targetBot.sendMessage(chatId, `❌ <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
         }
       } else if (tgUser?.lastAction?.startsWith('awaiting_aptos_txid_')) {
         const paymentId = parseInt(tgUser.lastAction.split('_')[3]);
@@ -5190,7 +5191,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           ).catch(console.error);
 
         } else {
-          targetBot.sendMessage(chatId, `❌ <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
         }
       } else if (tgUser?.lastAction?.startsWith('awaiting_screenshot_') && msg.photo) {
       }
