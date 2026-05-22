@@ -2748,14 +2748,14 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         }
 
         const inline_keyboard = [
-          [{ text: '💰 Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
+          [{ text: 'Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: 'Purchase history', callback_data: 'purchase_history', icon_custom_emoji_id: '5334882760735598374' }],
           isAutomationEnabled
-            ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
-            : [{ text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
+            ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: 'Tutorial', callback_data: 'tutorial_menu', icon_custom_emoji_id: '5226512880362332956' }]
+            : [{ text: 'Tutorial', callback_data: 'tutorial_menu', icon_custom_emoji_id: '5226512880362332956' }]
         ];
 
         if (isSpecialOffersEnabled && hasActiveOffers) {
-          inline_keyboard.push([{ text: '🎁 Special Offers', callback_data: 'special_offers' }]);
+          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276043849160724882' }]);
         }
 
         const keyboard = { inline_keyboard };
@@ -4185,7 +4185,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               return targetBot.sendMessage(chatId, errorMsg, {
                 parse_mode: 'HTML',
                 reply_markup: {
-                  inline_keyboard: [[{ text: '💰 Add Funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }]]
+                  inline_keyboard: [[{ text: 'Add Funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }]]
                 }
               });
             }
@@ -4565,14 +4565,14 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const shopUrl = `${baseUrl}/shop`;
 
         const inline_keyboard = [
-          [{ text: '💰 Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
+          [{ text: 'Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: 'Purchase history', callback_data: 'purchase_history', icon_custom_emoji_id: '5334882760735598374' }],
           isAutomationEnabled
-            ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
-            : [{ text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
+            ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: 'Tutorial', callback_data: 'tutorial_menu', icon_custom_emoji_id: '5226512880362332956' }]
+            : [{ text: 'Tutorial', callback_data: 'tutorial_menu', icon_custom_emoji_id: '5226512880362332956' }]
         ];
 
         if (isSpecialOffersEnabled) {
-          inline_keyboard.push([{ text: '🎁 Special Offers', callback_data: 'special_offers' }]);
+          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276043849160724882' }]);
         }
 
         const keyboard = { inline_keyboard };
