@@ -8,7 +8,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { credentials, settings, payments, insertCredentialSchema, telegramUsers, users, insertAwsAccountSchema, insertSpecialOfferSchema, orders, products } from "@shared/schema";
 import { eq, desc, and, sql, gte, inArray } from "drizzle-orm";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { storage } from "./storage";
 import { initBot, getBroadcastBot } from "./telegram";
 import { setupAuth } from "./replit_integrations/auth";
@@ -352,7 +352,7 @@ export async function registerRoutes(
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new (pgStore as any)({
-    conString: process.env.DATABASE_URL,
+    pool: pool,
     createTableIfMissing: true,
     ttl: sessionTtl / 1000, // connect-pg-simple expects seconds
     tableName: "session",
@@ -689,10 +689,11 @@ export async function registerRoutes(
         const totalPrice = product.price * quantity;
 
         // 2. Check stock first
-        const availableItems = await tx.query.credentials.findMany({
-          where: and(eq(credentials.productId, productId), eq(credentials.status, 'available')),
-          limit: quantity
-        });
+        const availableItems = await tx.select()
+          .from(credentials)
+          .where(and(eq(credentials.productId, productId), eq(credentials.status, 'available')))
+          .limit(quantity)
+          .for('update', { skipLocked: true });
 
         if (availableItems.length < quantity) {
           throw new Error(`Insufficient stock. Only ${availableItems.length} items available.`);
@@ -831,10 +832,11 @@ export async function registerRoutes(
         if (!updatedUser) throw new Error("Insufficient balance");
 
         // Get stock
-        const availableItems = await tx.query.credentials.findMany({
-          where: and(eq(credentials.productId, offer.productId), eq(credentials.status, 'available')),
-          limit: offer.bundleQuantity
-        });
+        const availableItems = await tx.select()
+          .from(credentials)
+          .where(and(eq(credentials.productId, offer.productId), eq(credentials.status, 'available')))
+          .limit(offer.bundleQuantity)
+          .for('update', { skipLocked: true });
 
         if (availableItems.length < offer.bundleQuantity) {
           throw new Error("Insufficient stock for this bundle");
@@ -2926,10 +2928,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         try {
           const result = await db.transaction(async (tx) => {
             // 1. Stock check and selection inside transaction
-            const availableCredentials = await tx.query.credentials.findMany({
-              where: and(eq(credentials.productId, product.id), eq(credentials.status, 'available')),
-              limit: offer.bundleQuantity || 1
-            });
+            const availableCredentials = await tx.select()
+              .from(credentials)
+              .where(and(eq(credentials.productId, product.id), eq(credentials.status, 'available')))
+              .limit(offer.bundleQuantity || 1)
+              .for('update', { skipLocked: true });
 
             if (availableCredentials.length < (offer.bundleQuantity || 1)) {
               throw new Error(`Not enough stock. (Required: ${offer.bundleQuantity || 1}, Available: ${availableCredentials.length})`);
@@ -3376,7 +3379,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `<tg-emoji emoji-id="5296437653770608702">💰</tg-emoji> <b>TRC20 (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -3394,7 +3397,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
         const prompt = await targetBot.sendMessage(chatId,
-          `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
+          `<tg-emoji emoji-id="5206715082582533386">⚡</tg-emoji> <b>Aptos (USDT) Deposit</b>\n\nEnter the <b>USDT amount</b> you want to deposit (USD <tg-emoji emoji-id="5201692367437974073">💵</tg-emoji>):`,
           { parse_mode: 'HTML' }
         );
         await storage.updateTelegramUserByChatId(chatId.toString(), {
@@ -3406,10 +3409,25 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
       if (data.startsWith('check_payment_')) {
         const paymentId = parseInt(data.substring(14));
-        const payment = await storage.getPayment(paymentId);
 
-        if (!payment || payment.status !== 'pending') {
-          await targetBot.sendMessage(chatId, "❌ Payment not found, expired, or already processed.");
+        // Atomically lock and transition payment status to processing
+        const payment = await db.transaction(async (tx) => {
+          const [p] = await tx.select().from(payments).where(eq(payments.id, paymentId)).for('update');
+          if (!p) return null;
+          if (p.status !== 'pending') return p;
+
+          const [updated] = await tx.update(payments)
+            .set({ status: 'processing', updatedAt: new Date() })
+            .where(eq(payments.id, paymentId))
+            .returning();
+          return updated;
+        });
+
+        if (!payment || payment.status !== 'processing') {
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Payment request is already being processed, expired, or completed.</b>`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
           return;
         }
 
@@ -3417,7 +3435,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         if (payment.createdAt && new Date(payment.createdAt) < oneHourAgo) {
           await storage.updatePayment(payment.id, { status: 'expired' });
-          await targetBot.sendMessage(chatId, "❌ This payment request has expired (1 hour limit). Please create a new one.");
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>This payment request has expired (1 hour limit). Please create a new one.</b>`, { parse_mode: 'HTML' });
           return;
         }
 
@@ -3438,6 +3456,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
 
             if (!apiKey || !secretKey) {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, "⚠️ Automatic verification is not configured for Binance. Please contact support.");
               return;
@@ -3480,36 +3499,43 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 // Check if this transaction has already been used for a payment
                 const existingSuccess = await db.select().from(payments).where(and(eq(payments.externalId, match.orderId), eq(payments.status, 'completed'))).limit(1);
                 if (existingSuccess.length > 0) {
+                  await storage.updatePayment(payment.id, { status: 'pending' });
                   await targetBot.sendMessage(chatId, "⚠️ This transaction has already been credited to your account.");
                   return;
                 }
 
-                await storage.updateTelegramUser(tgUser.id, {
-                  balance: tgUser.balance + payment.amount
+                // Lock user and complete payment atomically
+                await db.transaction(async (tx) => {
+                  const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                  if (u) {
+                    await tx.update(telegramUsers).set({ balance: u.balance + payment.amount }).where(eq(telegramUsers.id, u.id));
+                  }
+                  await tx.update(payments).set({
+                    status: 'completed',
+                    externalId: match.orderId,
+                    updatedAt: new Date()
+                  }).where(eq(payments.id, payment.id));
                 });
-                await storage.updatePayment(payment.id, {
-                  status: 'completed',
-                  externalId: match.orderId
-                });
+
                 await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Binance payment verified!</b> $${expectedAmount} has been added to your balance.`, { parse_mode: 'HTML' });
               } else {
+                await storage.updatePayment(payment.id, { status: 'pending' });
                 const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. <tg-emoji emoji-id="6298544405435387645">❌</tg-emoji>`;
                 const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
                 if (sentMsg) {
                   await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
-                  // Auto delete after 15 seconds
                   setTimeout(() => {
                     targetBot.deleteMessage(chatId, sentMsg.message_id).catch(() => { });
                   }, 15000);
                 }
               }
             } else {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Binance transaction not found.</b>\n\nPlease ensure you included your User ID in the Note field and transferred the exact amount. <tg-emoji emoji-id="6298544405435387645">❌</tg-emoji>`;
               const sentMsg = await targetBot.sendMessage(chatId, failMsg, { parse_mode: 'HTML' });
               if (sentMsg) {
                 await storage.updateTelegramUser(tgUser.id, { lastErrorMessageId: sentMsg.message_id });
-                // Auto delete after 15 seconds
                 setTimeout(() => {
                   targetBot.deleteMessage(chatId, sentMsg.message_id).catch(() => { });
                 }, 15000);
@@ -3520,6 +3546,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const apiKey = (await storage.getSetting('CRYPTOMUS_API_KEY'))?.value;
 
             if (!merchantId || !apiKey) {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, "⚠️ Automatic verification is not configured for Cryptomus. Please contact support.");
               return;
@@ -3543,12 +3570,18 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const status = response.data.result.status;
                 if (status === 'paid' || status === 'paid_over') {
                   if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-                  await storage.updateTelegramUser(tgUser.id, {
-                    balance: tgUser.balance + payment.amount
+                  
+                  await db.transaction(async (tx) => {
+                    const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                    if (u) {
+                      await tx.update(telegramUsers).set({ balance: u.balance + payment.amount }).where(eq(telegramUsers.id, u.id));
+                    }
+                    await tx.update(payments).set({ status: 'completed', updatedAt: new Date() }).where(eq(payments.id, payment.id));
                   });
-                  await storage.updatePayment(payment.id, { status: 'completed' });
+
                   await targetBot.sendMessage(chatId, `✅ Cryptomus payment verified! $${(payment.amount / 100).toFixed(2)} has been added to your balance.`);
                 } else if (status === 'process') {
+                  await storage.updatePayment(payment.id, { status: 'pending' });
                   if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
                   await targetBot.sendMessage(chatId, "⏳ Payment is still processing. Please wait a few minutes and try again.");
                 } else if (status === 'cancel' || status === 'fail') {
@@ -3556,17 +3589,20 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                   await storage.updatePayment(payment.id, { status: 'failed' });
                   await targetBot.sendMessage(chatId, "❌ Payment was cancelled or failed.");
                 } else {
+                  await storage.updatePayment(payment.id, { status: 'pending' });
                   if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
                   await targetBot.sendMessage(chatId, "❌ Payment was not found or is awaiting network confirmation. Try again later");
                 }
               }
             } catch (err) {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, "❌ Error checking Cryptomus payment status.");
             }
           } else if (payment.paymentMethod === 'trc20') {
             const walletAddress = (await storage.getSetting('TRC20_WALLET_ADDRESS'))?.value;
             if (!walletAddress) {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, "⚠️ TRC20 wallet address is not configured. Please contact support.");
               return;
@@ -3581,6 +3617,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
 
                 if (!apiKey || !secretKey) {
+                  await storage.updatePayment(payment.id, { status: 'pending' });
                   if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
                   await targetBot.sendMessage(chatId, "⚠️ Automatic verification is not configured for Binance. Please contact support.");
                   return;
@@ -3602,22 +3639,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
                 const deposits = res.data;
                 if (deposits && Array.isArray(deposits)) {
-                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                  let usedTxIds: string[] = [];
-                  if (usedTxIdsSetting?.value) {
-                    try {
-                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                    } catch (e) {
-                      console.error("Error parsing USED_TXIDS_JSON:", e);
-                    }
-                  }
-
                   const expectedAmount = payment.amount / 100;
                   const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
 
                   for (const d of deposits) {
                     const txId = (d.txId || '').toLowerCase();
-                    if (usedTxIds.includes(txId)) continue;
                     if (d.status !== 1) continue;
                     if ((d.coin || '').toUpperCase() !== 'USDT') continue;
 
@@ -3633,52 +3659,72 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                     const actualAmount = parseFloat(d.amount);
                     if (isNaN(actualAmount) || Math.abs(actualAmount - expectedAmount) >= 0.001) continue;
 
-                    matched = true;
-                    usedTxIds.push(txId);
-                    await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
-
-                    const creditAmountCents = Math.round(actualAmount * 100);
-                    await storage.updateTelegramUser(tgUser.id, {
-                      balance: tgUser.balance + creditAmountCents,
-                      lastAction: null,
-                      lastMessageId: null
-                    });
-
-                    await storage.updatePayment(payment.id, {
-                      status: 'completed',
-                      externalId: d.txId,
-                      amount: creditAmountCents
-                    });
-
-                    if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-
-                    await targetBot.sendMessage(chatId, 
-                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
-                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                      { parse_mode: 'HTML' }
-                    );
-
-                    const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                    io.emit('admin_notification', {
-                      type: 'deposit',
-                      title: 'New TRC20 Deposit',
-                      message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
-                      data: {
-                        paymentId: payment.id,
-                        userId: tgUser.telegramId,
-                        amount: actualAmount,
-                        txId: d.txId
+                    // Atomic locking transaction
+                    const txResult = await db.transaction(async (tx) => {
+                      const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+                      let currentUsed: string[] = [];
+                      if (settingRow?.value) {
+                        try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
                       }
+                      if (currentUsed.includes(txId)) {
+                        return { success: false, error: "duplicate" };
+                      }
+
+                      const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                      if (!u) return { success: false, error: "user_not_found" };
+
+                      currentUsed.push(txId);
+                      await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+
+                      const creditAmountCents = Math.round(actualAmount * 100);
+                      await tx.update(telegramUsers).set({
+                        balance: u.balance + creditAmountCents,
+                        lastAction: null,
+                        lastMessageId: null
+                      }).where(eq(telegramUsers.id, u.id));
+
+                      await tx.update(payments).set({
+                        status: 'completed',
+                        externalId: d.txId,
+                        amount: creditAmountCents,
+                        updatedAt: new Date()
+                      }).where(eq(payments.id, payment.id));
+
+                      return { success: true, creditAmountCents };
                     });
 
-                    sendAdminPushNotification(
-                      'New TRC20 Deposit',
-                      `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
-                    ).catch(console.error);
+                    if (txResult.success) {
+                      matched = true;
+                      if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                    break;
+                      await targetBot.sendMessage(chatId, 
+                        `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                        `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                        `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                        `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                        { parse_mode: 'HTML' }
+                      );
+
+                      const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                      io.emit('admin_notification', {
+                        type: 'deposit',
+                        title: 'New TRC20 Deposit',
+                        message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
+                        data: {
+                          paymentId: payment.id,
+                          userId: tgUser.telegramId,
+                          amount: actualAmount,
+                          txId: d.txId
+                        }
+                      });
+
+                      sendAdminPushNotification(
+                        'New TRC20 Deposit',
+                        `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
+                      ).catch(console.error);
+
+                      break;
+                    }
                   }
                 }
               } else {
@@ -3687,22 +3733,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const dataTRC = res.data;
 
                 if (dataTRC && dataTRC.token_transfers && dataTRC.token_transfers.length > 0) {
-                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                  let usedTxIds: string[] = [];
-                  if (usedTxIdsSetting?.value) {
-                    try {
-                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                    } catch (e) {
-                      console.error("Error parsing USED_TXIDS_JSON:", e);
-                    }
-                  }
-
                   const expectedAmount = payment.amount / 100;
                   const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
 
                   for (const transfer of dataTRC.token_transfers) {
                     const txId = (transfer.transaction_id || '').toLowerCase();
-                    if (usedTxIds.includes(txId)) continue;
 
                     const toAddr = (transfer.to_address || '').trim().toLowerCase();
                     const contractAddr = (transfer.contract_address || '').trim();
@@ -3717,52 +3752,72 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                         const actualAmount = parseFloat(transfer.quant || '0') / Math.pow(10, decimals);
 
                         if (Math.abs(actualAmount - expectedAmount) < 0.001) {
-                          matched = true;
-                          usedTxIds.push(txId);
-                          await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
-
-                          const creditAmountCents = Math.round(actualAmount * 100);
-                          await storage.updateTelegramUser(tgUser.id, {
-                            balance: tgUser.balance + creditAmountCents,
-                            lastAction: null,
-                            lastMessageId: null
-                          });
-
-                          await storage.updatePayment(payment.id, {
-                            status: 'completed',
-                            externalId: transfer.transaction_id,
-                            amount: creditAmountCents
-                          });
-
-                          if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-
-                          await targetBot.sendMessage(chatId, 
-                            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
-                            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                            { parse_mode: 'HTML' }
-                          );
-
-                          const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                          io.emit('admin_notification', {
-                            type: 'deposit',
-                            title: 'New TRC20 Deposit',
-                            message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
-                            data: {
-                              paymentId: payment.id,
-                              userId: tgUser.telegramId,
-                              amount: actualAmount,
-                              txId: transfer.transaction_id
+                          // Atomic locking transaction
+                          const txResult = await db.transaction(async (tx) => {
+                            const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+                            let currentUsed: string[] = [];
+                            if (settingRow?.value) {
+                              try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
                             }
+                            if (currentUsed.includes(txId)) {
+                              return { success: false, error: "duplicate" };
+                            }
+
+                            const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                            if (!u) return { success: false, error: "user_not_found" };
+
+                            currentUsed.push(txId);
+                            await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+
+                            const creditAmountCents = Math.round(actualAmount * 100);
+                            await tx.update(telegramUsers).set({
+                              balance: u.balance + creditAmountCents,
+                              lastAction: null,
+                              lastMessageId: null
+                            }).where(eq(telegramUsers.id, u.id));
+
+                            await tx.update(payments).set({
+                              status: 'completed',
+                              externalId: transfer.transaction_id,
+                              amount: creditAmountCents,
+                              updatedAt: new Date()
+                            }).where(eq(payments.id, payment.id));
+
+                            return { success: true, creditAmountCents };
                           });
 
-                          sendAdminPushNotification(
-                            'New TRC20 Deposit',
-                            `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${transfer.transaction_id.substring(0, 10)}...)`
-                          ).catch(console.error);
+                          if (txResult.success) {
+                            matched = true;
+                            if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                          break;
+                            await targetBot.sendMessage(chatId, 
+                              `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                              `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                              `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                              `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                              { parse_mode: 'HTML' }
+                            );
+
+                            const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                            io.emit('admin_notification', {
+                              type: 'deposit',
+                              title: 'New TRC20 Deposit',
+                              message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via TRC20`,
+                              data: {
+                                paymentId: payment.id,
+                                userId: tgUser.telegramId,
+                                amount: actualAmount,
+                                txId: transfer.transaction_id
+                              }
+                            });
+
+                            sendAdminPushNotification(
+                              'New TRC20 Deposit',
+                              `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${transfer.transaction_id.substring(0, 10)}...)`
+                            ).catch(console.error);
+
+                            break;
+                          }
                         }
                       }
                     }
@@ -3771,6 +3826,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               }
 
               if (!matched) {
+                await storage.updatePayment(payment.id, { status: 'pending' });
                 if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                 const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
@@ -3783,6 +3839,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 }
               }
             } catch (err: any) {
+              await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
               console.error("Error during TRC20 check payment:", err);
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, `❌ Error verifying TRC20 payment: ${err.message || err}`);
@@ -3790,6 +3847,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           } else if (payment.paymentMethod === 'aptos') {
             const walletAddress = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value;
             if (!walletAddress) {
+              await storage.updatePayment(payment.id, { status: 'pending' });
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, "⚠️ Aptos wallet address is not configured. Please contact support.");
               return;
@@ -3804,6 +3862,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const secretKey = (await storage.getSetting('BINANCE_SECRET_KEY'))?.value;
 
                 if (!apiKey || !secretKey) {
+                  await storage.updatePayment(payment.id, { status: 'pending' });
                   if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
                   await targetBot.sendMessage(chatId, "⚠️ Automatic verification is not configured for Binance. Please contact support.");
                   return;
@@ -3825,22 +3884,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
                 const deposits = res.data;
                 if (deposits && Array.isArray(deposits)) {
-                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                  let usedTxIds: string[] = [];
-                  if (usedTxIdsSetting?.value) {
-                    try {
-                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                    } catch (e) {
-                      console.error("Error parsing USED_TXIDS_JSON:", e);
-                    }
-                  }
-
                   const expectedAmount = payment.amount / 100;
                   const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
 
                   for (const d of deposits) {
                     const txId = (d.txId || '').toLowerCase();
-                    if (usedTxIds.includes(txId)) continue;
                     if (d.status !== 1) continue;
                     if ((d.coin || '').toUpperCase() !== 'USDT') continue;
 
@@ -3856,52 +3904,72 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                     const actualAmount = parseFloat(d.amount);
                     if (isNaN(actualAmount) || Math.abs(actualAmount - expectedAmount) >= 0.001) continue;
 
-                    matched = true;
-                    usedTxIds.push(txId);
-                    await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
-
-                    const creditAmountCents = Math.round(actualAmount * 100);
-                    await storage.updateTelegramUser(tgUser.id, {
-                      balance: tgUser.balance + creditAmountCents,
-                      lastAction: null,
-                      lastMessageId: null
-                    });
-
-                    await storage.updatePayment(payment.id, {
-                      status: 'completed',
-                      externalId: d.txId,
-                      amount: creditAmountCents
-                    });
-
-                    if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-
-                    await targetBot.sendMessage(chatId, 
-                      `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
-                      `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                      `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                      `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                      { parse_mode: 'HTML' }
-                    );
-
-                    const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                    io.emit('admin_notification', {
-                      type: 'deposit',
-                      title: 'New Aptos Deposit',
-                      message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
-                      data: {
-                        paymentId: payment.id,
-                        userId: tgUser.telegramId,
-                        amount: actualAmount,
-                        txId: d.txId
+                    // Atomic locking transaction
+                    const txResult = await db.transaction(async (tx) => {
+                      const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+                      let currentUsed: string[] = [];
+                      if (settingRow?.value) {
+                        try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
                       }
+                      if (currentUsed.includes(txId)) {
+                        return { success: false, error: "duplicate" };
+                      }
+
+                      const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                      if (!u) return { success: false, error: "user_not_found" };
+
+                      currentUsed.push(txId);
+                      await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+
+                      const creditAmountCents = Math.round(actualAmount * 100);
+                      await tx.update(telegramUsers).set({
+                        balance: u.balance + creditAmountCents,
+                        lastAction: null,
+                        lastMessageId: null
+                      }).where(eq(telegramUsers.id, u.id));
+
+                      await tx.update(payments).set({
+                        status: 'completed',
+                        externalId: d.txId,
+                        amount: creditAmountCents,
+                        updatedAt: new Date()
+                      }).where(eq(payments.id, payment.id));
+
+                      return { success: true, creditAmountCents };
                     });
 
-                    sendAdminPushNotification(
-                      'New Aptos Deposit',
-                      `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
-                    ).catch(console.error);
+                    if (txResult.success) {
+                      matched = true;
+                      if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                    break;
+                      await targetBot.sendMessage(chatId, 
+                        `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                        `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                        `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                        `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                        { parse_mode: 'HTML' }
+                      );
+
+                      const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                      io.emit('admin_notification', {
+                        type: 'deposit',
+                        title: 'New Aptos Deposit',
+                        message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
+                        data: {
+                          paymentId: payment.id,
+                          userId: tgUser.telegramId,
+                          amount: actualAmount,
+                          txId: d.txId
+                        }
+                      });
+
+                      sendAdminPushNotification(
+                        'New Aptos Deposit',
+                        `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${d.txId.substring(0, 10)}...)`
+                      ).catch(console.error);
+
+                      break;
+                    }
                   }
                 }
               } else {
@@ -3910,23 +3978,12 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 const transactions = res.data;
 
                 if (transactions && Array.isArray(transactions) && transactions.length > 0) {
-                  const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-                  let usedTxIds: string[] = [];
-                  if (usedTxIdsSetting?.value) {
-                    try {
-                      usedTxIds = JSON.parse(usedTxIdsSetting.value);
-                    } catch (e) {
-                      console.error("Error parsing USED_TXIDS_JSON:", e);
-                    }
-                  }
-
                   const expectedAmount = payment.amount / 100;
                   const paymentCreatedAtMs = payment.createdAt ? new Date(payment.createdAt).getTime() : Date.now();
                   const normWallet = normalizeAptosAddress(walletAddress);
 
                   for (const tx of transactions) {
                     const txId = (tx.hash || '').toLowerCase();
-                    if (usedTxIds.includes(txId)) continue;
                     if (tx.success !== true) continue;
 
                     const txTimestampMs = Math.floor(parseInt(tx.timestamp || '0') / 1000);
@@ -3977,52 +4034,72 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
                     if (found && actualAmount > 0) {
                       if (Math.abs(actualAmount - expectedAmount) < 0.001) {
-                        matched = true;
-                        usedTxIds.push(txId);
-                        await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
-
-                        const creditAmountCents = Math.round(actualAmount * 100);
-                        await storage.updateTelegramUser(tgUser.id, {
-                          balance: tgUser.balance + creditAmountCents,
-                          lastAction: null,
-                          lastMessageId: null
-                        });
-
-                        await storage.updatePayment(payment.id, {
-                          status: 'completed',
-                          externalId: tx.hash,
-                          amount: creditAmountCents
-                        });
-
-                        if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
-
-                        await targetBot.sendMessage(chatId, 
-                          `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
-                          `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-                          `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-                          `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-                          { parse_mode: 'HTML' }
-                        );
-
-                        const userDisplayName = tgUser.firstName || tgUser.username || "User";
-                        io.emit('admin_notification', {
-                          type: 'deposit',
-                          title: 'New Aptos Deposit',
-                          message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
-                          data: {
-                            paymentId: payment.id,
-                            userId: tgUser.telegramId,
-                            amount: actualAmount,
-                            txId: tx.hash
+                        // Atomic locking transaction
+                        const txResult = await db.transaction(async (tx) => {
+                          const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+                          let currentUsed: string[] = [];
+                          if (settingRow?.value) {
+                            try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
                           }
+                          if (currentUsed.includes(txId)) {
+                            return { success: false, error: "duplicate" };
+                          }
+
+                          const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+                          if (!u) return { success: false, error: "user_not_found" };
+
+                          currentUsed.push(txId);
+                          await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+
+                          const creditAmountCents = Math.round(actualAmount * 100);
+                          await tx.update(telegramUsers).set({
+                            balance: u.balance + creditAmountCents,
+                            lastAction: null,
+                            lastMessageId: null
+                          }).where(eq(telegramUsers.id, u.id));
+
+                          await tx.update(payments).set({
+                            status: 'completed',
+                            externalId: tx.hash,
+                            amount: creditAmountCents,
+                            updatedAt: new Date()
+                          }).where(eq(payments.id, payment.id));
+
+                          return { success: true, creditAmountCents };
                         });
 
-                        sendAdminPushNotification(
-                          'New Aptos Deposit',
-                          `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${tx.hash.substring(0, 10)}...)`
-                        ).catch(console.error);
+                        if (txResult.success) {
+                          matched = true;
+                          if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
-                        break;
+                          await targetBot.sendMessage(chatId, 
+                            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                            { parse_mode: 'HTML' }
+                          );
+
+                          const userDisplayName = tgUser.firstName || tgUser.username || "User";
+                          io.emit('admin_notification', {
+                            type: 'deposit',
+                            title: 'New Aptos Deposit',
+                            message: `${userDisplayName} deposited $${actualAmount.toFixed(2)} via Aptos`,
+                            data: {
+                              paymentId: payment.id,
+                              userId: tgUser.telegramId,
+                              amount: actualAmount,
+                              txId: tx.hash
+                            }
+                          });
+
+                          sendAdminPushNotification(
+                            'New Aptos Deposit',
+                            `${userDisplayName} deposited $${actualAmount.toFixed(2)} (TXID: ${tx.hash.substring(0, 10)}...)`
+                          ).catch(console.error);
+
+                          break;
+                        }
                       }
                     }
                   }
@@ -4030,6 +4107,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               }
 
               if (!matched) {
+                await storage.updatePayment(payment.id, { status: 'pending' });
                 if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
 
                 const failMsg = `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Your payment is still pending please pay.</b>\n\nIf you have already paid, please copy and send your <b>Transaction Hash / ID (TXID)</b> directly in the chat for automatic verification.`;
@@ -4042,12 +4120,14 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                 }
               }
             } catch (err: any) {
+              await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
               console.error("Error during Aptos check payment:", err);
               if (checkingMsg) await targetBot.deleteMessage(chatId, checkingMsg.message_id).catch(() => { });
               await targetBot.sendMessage(chatId, `❌ Error verifying Aptos payment: ${err.message || err}`);
             }
           }
         } catch (err) {
+          await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
           if (checkingMsg) await targetBot.deleteMessage(chatId, (checkingMsg as any).message_id).catch(() => { });
           await targetBot.sendMessage(chatId, "❌ Error connecting to exchange API. Please contact support.");
         }
@@ -4569,10 +4649,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const totalPrice = product.price * quantity;
 
             // 2. Stock check first inside transaction
-            const availableCredentials = await tx.query.credentials.findMany({
-              where: and(eq(credentials.productId, productId), eq(credentials.status, 'available')),
-              limit: quantity
-            });
+            const availableCredentials = await tx.select()
+              .from(credentials)
+              .where(and(eq(credentials.productId, productId), eq(credentials.status, 'available')))
+              .limit(quantity)
+              .for('update', { skipLocked: true });
 
             if (availableCredentials.length < quantity) {
               throw new Error(`Sorry, only ${availableCredentials.length} Pcs remaining.`);
@@ -4867,7 +4948,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_trc20_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
             `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Address:</b> <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
@@ -4935,7 +5016,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_aptos_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5206715082582533386">⚡</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
             `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Address:</b> <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
@@ -4980,104 +5061,140 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         } catch (e) { }
 
         if (!txId) {
-          targetBot.sendMessage(chatId, "❌ Please enter a valid Transaction ID (TXID).");
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Please enter a valid Transaction ID (TXID).</b>`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
           return;
         }
 
-        const payment = await storage.getPayment(paymentId);
-        if (!payment || payment.status !== 'pending') {
-          targetBot.sendMessage(chatId, "❌ Payment request not found or already processed. Please request a new deposit.");
+        // Lock payment and transition status to processing
+        const payment = await db.transaction(async (tx) => {
+          const [p] = await tx.select().from(payments).where(eq(payments.id, paymentId)).for('update');
+          if (!p) return null;
+          if (p.status !== 'pending') return p;
+
+          const [updated] = await tx.update(payments)
+            .set({ status: 'processing', updatedAt: new Date() })
+            .where(eq(payments.id, paymentId))
+            .returning();
+          return updated;
+        });
+
+        if (!payment || payment.status !== 'processing') {
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Payment request not found or already processed. Please request a new deposit.</b>`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
           return;
         }
 
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         if (payment.createdAt && new Date(payment.createdAt) < oneHourAgo) {
           await storage.updatePayment(payment.id, { status: 'expired' });
-          targetBot.sendMessage(chatId, "❌ This payment request has expired. Please create a new one.");
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>This payment request has expired. Please create a new one.</b>`, { parse_mode: 'HTML' });
           return;
         }
 
         const walletAddress = (await storage.getSetting('TRC20_WALLET_ADDRESS'))?.value;
         if (!walletAddress) {
-          targetBot.sendMessage(chatId, "❌ TRC20 wallet is not configured. Please contact support.");
+          await storage.updatePayment(payment.id, { status: 'pending' });
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>TRC20 wallet is not configured. Please contact support.</b>`, { parse_mode: 'HTML' });
           return;
         }
-
-        const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-        let usedTxIds: string[] = [];
-        if (usedTxIdsSetting?.value) {
-          try {
-            usedTxIds = JSON.parse(usedTxIdsSetting.value);
-          } catch (e) {
-            console.error("Error parsing USED_TXIDS_JSON:", e);
-          }
-        }
-
-        if (usedTxIds.includes(txId.toLowerCase())) {
-          targetBot.sendMessage(chatId, "❌ This Transaction ID (TXID) has already been used and credited. Double-crediting is not allowed.");
-          return;
-        }
-
-        const verificationMode = (await storage.getSetting('TRC20_VERIFICATION_MODE'))?.value || 'binance';
-        const checkingMsgText = verificationMode === 'binance' 
-          ? `⏳ <b>Verifying your TRC20 payment via Binance...</b> Please wait a moment.`
-          : `⏳ <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`;
-        const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
-
-        const result = verificationMode === 'binance'
-          ? await verifyDepositViaBinance(txId, 'TRC20', walletAddress)
-          : await verifyTrc20Transaction(txId, walletAddress);
 
         try {
-          await targetBot.deleteMessage(chatId, checkingMsg.message_id);
-        } catch (e) { }
+          const verificationMode = (await storage.getSetting('TRC20_VERIFICATION_MODE'))?.value || 'binance';
+          const checkingMsgText = verificationMode === 'binance' 
+            ? `⏳ <b>Verifying your TRC20 payment via Binance...</b> Please wait a moment.`
+            : `⏳ <b>Verifying your TRC20 payment on-chain...</b> Please wait a moment.`;
+          const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
 
-        if (result.success && result.actualAmount) {
-          usedTxIds.push(txId.toLowerCase());
-          await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
+          const result = verificationMode === 'binance'
+            ? await verifyDepositViaBinance(txId, 'TRC20', walletAddress)
+            : await verifyTrc20Transaction(txId, walletAddress);
 
-          const creditAmountCents = Math.round(result.actualAmount * 100);
+          try {
+            await targetBot.deleteMessage(chatId, checkingMsg.message_id);
+          } catch (e) { }
 
-          await storage.updateTelegramUser(tgUser.id, {
-            balance: tgUser.balance + creditAmountCents,
-            lastAction: null,
-            lastMessageId: null
-          });
+          if (result.success && result.actualAmount) {
+            const txResult = await db.transaction(async (tx) => {
+              const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+              let currentUsed: string[] = [];
+              if (settingRow?.value) {
+                try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
+              }
+              if (currentUsed.includes(txId.toLowerCase())) {
+                return { success: false, error: "duplicate" };
+              }
 
-          await storage.updatePayment(payment.id, {
-            status: 'completed',
-            externalId: txId,
-            amount: creditAmountCents
-          });
+              const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+              if (!u) return { success: false, error: "user_not_found" };
 
-          targetBot.sendMessage(chatId, 
-            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
-            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-            { parse_mode: 'HTML' }
-          );
+              currentUsed.push(txId.toLowerCase());
+              await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
 
-          const userDisplayName = tgUser.firstName || tgUser.username || "User";
-          io.emit('admin_notification', {
-            type: 'deposit',
-            title: 'New TRC20 Deposit',
-            message: `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} via TRC20`,
-            data: {
-              paymentId: payment.id,
-              userId: tgUser.telegramId,
-              amount: result.actualAmount,
-              txId
+              const creditAmountCents = Math.round(result.actualAmount * 100);
+              await tx.update(telegramUsers).set({
+                balance: u.balance + creditAmountCents,
+                lastAction: null,
+                lastMessageId: null
+              }).where(eq(telegramUsers.id, u.id));
+
+              await tx.update(payments).set({
+                status: 'completed',
+                externalId: txId,
+                amount: creditAmountCents,
+                updatedAt: new Date()
+              }).where(eq(payments.id, payment.id));
+
+              return { success: true, creditAmountCents };
+            });
+
+            if (txResult.success) {
+              await targetBot.sendMessage(chatId, 
+                `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Payment Verified successfully!</b>\n\n` +
+                `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                { parse_mode: 'HTML' }
+              );
+
+              const userDisplayName = tgUser.firstName || tgUser.username || "User";
+              io.emit('admin_notification', {
+                type: 'deposit',
+                title: 'New TRC20 Deposit',
+                message: `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} via TRC20`,
+                data: {
+                  paymentId: payment.id,
+                  userId: tgUser.telegramId,
+                  amount: result.actualAmount,
+                  txId
+                }
+              });
+
+              sendAdminPushNotification(
+                'New TRC20 Deposit',
+                `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} (TXID: ${txId.substring(0, 10)}...)`
+              ).catch(console.error);
+            } else {
+              await storage.updatePayment(payment.id, { status: 'pending' });
+              const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> This Transaction ID (TXID) has already been used.`, { parse_mode: 'HTML' });
+              setTimeout(() => {
+                targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+              }, 15000);
             }
-          });
-
-          sendAdminPushNotification(
-            'New TRC20 Deposit',
-            `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} (TXID: ${txId.substring(0, 10)}...)`
-          ).catch(console.error);
-
-        } else {
-          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          } else {
+            await storage.updatePayment(payment.id, { status: 'pending' });
+            const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+            setTimeout(() => {
+              targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+            }, 15000);
+          }
+        } catch (err: any) {
+          await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${err.message || err}`, { parse_mode: 'HTML' });
           setTimeout(() => {
             targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
           }, 15000);
@@ -5094,104 +5211,140 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         } catch (e) { }
 
         if (!txId) {
-          targetBot.sendMessage(chatId, "❌ Please enter a valid Transaction ID (TXID).");
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Please enter a valid Transaction ID (TXID).</b>`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
           return;
         }
 
-        const payment = await storage.getPayment(paymentId);
-        if (!payment || payment.status !== 'pending') {
-          targetBot.sendMessage(chatId, "❌ Payment request not found or already processed. Please request a new deposit.");
+        // Lock payment and transition status to processing
+        const payment = await db.transaction(async (tx) => {
+          const [p] = await tx.select().from(payments).where(eq(payments.id, paymentId)).for('update');
+          if (!p) return null;
+          if (p.status !== 'pending') return p;
+
+          const [updated] = await tx.update(payments)
+            .set({ status: 'processing', updatedAt: new Date() })
+            .where(eq(payments.id, paymentId))
+            .returning();
+          return updated;
+        });
+
+        if (!payment || payment.status !== 'processing') {
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Payment request not found or already processed. Please request a new deposit.</b>`, { parse_mode: 'HTML' });
+          setTimeout(() => {
+            targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+          }, 15000);
           return;
         }
 
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         if (payment.createdAt && new Date(payment.createdAt) < oneHourAgo) {
           await storage.updatePayment(payment.id, { status: 'expired' });
-          targetBot.sendMessage(chatId, "❌ This payment request has expired. Please create a new one.");
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>This payment request has expired. Please create a new one.</b>`, { parse_mode: 'HTML' });
           return;
         }
 
         const walletAddress = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value;
         if (!walletAddress) {
-          targetBot.sendMessage(chatId, "❌ Aptos wallet is not configured. Please contact support.");
+          await storage.updatePayment(payment.id, { status: 'pending' });
+          await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Aptos wallet is not configured. Please contact support.</b>`, { parse_mode: 'HTML' });
           return;
         }
-
-        const usedTxIdsSetting = await storage.getSetting('USED_TXIDS_JSON');
-        let usedTxIds: string[] = [];
-        if (usedTxIdsSetting?.value) {
-          try {
-            usedTxIds = JSON.parse(usedTxIdsSetting.value);
-          } catch (e) {
-            console.error("Error parsing USED_TXIDS_JSON:", e);
-          }
-        }
-
-        if (usedTxIds.includes(txId.toLowerCase())) {
-          targetBot.sendMessage(chatId, "❌ This Transaction ID (TXID) has already been used and credited. Double-crediting is not allowed.");
-          return;
-        }
-
-        const verificationMode = (await storage.getSetting('APTOS_VERIFICATION_MODE'))?.value || 'binance';
-        const checkingMsgText = verificationMode === 'binance' 
-          ? `⏳ <b>Verifying your Aptos payment via Binance...</b> Please wait a moment.`
-          : `⏳ <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`;
-        const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
-
-        const result = verificationMode === 'binance'
-          ? await verifyDepositViaBinance(txId, 'APTOS', walletAddress)
-          : await verifyAptosTransaction(txId, walletAddress);
 
         try {
-          await targetBot.deleteMessage(chatId, checkingMsg.message_id);
-        } catch (e) { }
+          const verificationMode = (await storage.getSetting('APTOS_VERIFICATION_MODE'))?.value || 'binance';
+          const checkingMsgText = verificationMode === 'binance' 
+            ? `⏳ <b>Verifying your Aptos payment via Binance...</b> Please wait a moment.`
+            : `⏳ <b>Verifying your Aptos payment on-chain...</b> Please wait a moment.`;
+          const checkingMsg = await targetBot.sendMessage(chatId, checkingMsgText, { parse_mode: 'HTML' });
 
-        if (result.success && result.actualAmount) {
-          usedTxIds.push(txId.toLowerCase());
-          await storage.updateSetting('USED_TXIDS_JSON', JSON.stringify(usedTxIds));
+          const result = verificationMode === 'binance'
+            ? await verifyDepositViaBinance(txId, 'APTOS', walletAddress)
+            : await verifyAptosTransaction(txId, walletAddress);
 
-          const creditAmountCents = Math.round(result.actualAmount * 100);
+          try {
+            await targetBot.deleteMessage(chatId, checkingMsg.message_id);
+          } catch (e) { }
 
-          await storage.updateTelegramUser(tgUser.id, {
-            balance: tgUser.balance + creditAmountCents,
-            lastAction: null,
-            lastMessageId: null
-          });
+          if (result.success && result.actualAmount) {
+            const txResult = await db.transaction(async (tx) => {
+              const [settingRow] = await tx.select().from(settings).where(eq(settings.key, 'USED_TXIDS_JSON')).for('update');
+              let currentUsed: string[] = [];
+              if (settingRow?.value) {
+                try { currentUsed = JSON.parse(settingRow.value); } catch(e) {}
+              }
+              if (currentUsed.includes(txId.toLowerCase())) {
+                return { success: false, error: "duplicate" };
+              }
 
-          await storage.updatePayment(payment.id, {
-            status: 'completed',
-            externalId: txId,
-            amount: creditAmountCents
-          });
+              const [u] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, tgUser.id)).for('update');
+              if (!u) return { success: false, error: "user_not_found" };
 
-          targetBot.sendMessage(chatId, 
-            `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
-            `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
-            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
-            `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
-            { parse_mode: 'HTML' }
-          );
+              currentUsed.push(txId.toLowerCase());
+              await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
 
-          const userDisplayName = tgUser.firstName || tgUser.username || "User";
-          io.emit('admin_notification', {
-            type: 'deposit',
-            title: 'New Aptos Deposit',
-            message: `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} via Aptos`,
-            data: {
-              paymentId: payment.id,
-              userId: tgUser.telegramId,
-              amount: result.actualAmount,
-              txId
+              const creditAmountCents = Math.round(result.actualAmount * 100);
+              await tx.update(telegramUsers).set({
+                balance: u.balance + creditAmountCents,
+                lastAction: null,
+                lastMessageId: null
+              }).where(eq(telegramUsers.id, u.id));
+
+              await tx.update(payments).set({
+                status: 'completed',
+                externalId: txId,
+                amount: creditAmountCents,
+                updatedAt: new Date()
+              }).where(eq(payments.id, payment.id));
+
+              return { success: true, creditAmountCents };
+            });
+
+            if (txResult.success) {
+              await targetBot.sendMessage(chatId, 
+                `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>Aptos Payment Verified successfully!</b>\n\n` +
+                `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> Credited: <b>$${result.actualAmount.toFixed(2)}</b> has been added to your balance.\n` +
+                `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Account ID: <code>${tgUser.telegramId}</code>\n\n` +
+                `Thank you for your purchase! <tg-emoji emoji-id="5231102735817918643">🤍</tg-emoji>`,
+                { parse_mode: 'HTML' }
+              );
+
+              const userDisplayName = tgUser.firstName || tgUser.username || "User";
+              io.emit('admin_notification', {
+                type: 'deposit',
+                title: 'New Aptos Deposit',
+                message: `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} via Aptos`,
+                data: {
+                  paymentId: payment.id,
+                  userId: tgUser.telegramId,
+                  amount: result.actualAmount,
+                  txId
+                }
+              });
+
+              sendAdminPushNotification(
+                'New Aptos Deposit',
+                `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} (TXID: ${txId.substring(0, 10)}...)`
+              ).catch(console.error);
+            } else {
+              await storage.updatePayment(payment.id, { status: 'pending' });
+              const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> This Transaction ID (TXID) has already been used.`, { parse_mode: 'HTML' });
+              setTimeout(() => {
+                targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+              }, 15000);
             }
-          });
-
-          sendAdminPushNotification(
-            'New Aptos Deposit',
-            `${userDisplayName} deposited $${result.actualAmount.toFixed(2)} (TXID: ${txId.substring(0, 10)}...)`
-          ).catch(console.error);
-
-        } else {
-          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+          } else {
+            await storage.updatePayment(payment.id, { status: 'pending' });
+            const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${result.error || 'Transaction details did not match.'}\n\nPlease check your TXID and try entering it again:`, { parse_mode: 'HTML' });
+            setTimeout(() => {
+              targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
+            }, 15000);
+          }
+        } catch (err: any) {
+          await storage.updatePayment(payment.id, { status: 'pending' }).catch(() => {});
+          const failMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Verification failed:</b> ${err.message || err}`, { parse_mode: 'HTML' });
           setTimeout(() => {
             targetBot.deleteMessage(chatId, failMsg.message_id).catch(() => {});
           }, 15000);
@@ -5205,6 +5358,118 @@ initBot().catch(err => console.error("Initial bot setup failed:", err));
 
 // Start Backup Scheduler
 BackupService.startBackupScheduler().catch(err => console.error("Backup scheduler failed to start:", err));
+
+  // Cryptomus Webhook Handler
+  app.post("/api/payments/webhook", async (req, res) => {
+    try {
+      const apiKey = (await storage.getSetting('CRYPTOMUS_API_KEY'))?.value;
+      if (!apiKey) {
+        console.error("[Cryptomus Webhook] API Key not configured.");
+        return res.status(500).json({ message: "Cryptomus API Key not configured" });
+      }
+
+      const { sign, ...data } = req.body;
+      if (!sign) {
+        console.warn("[Cryptomus Webhook] Missing sign parameter.");
+        return res.status(400).json({ message: "Missing sign parameter" });
+      }
+
+      const serialized = JSON.stringify(data);
+      const computedSign = crypto
+        .createHash('md5')
+        .update(Buffer.from(serialized).toString('base64') + apiKey)
+        .digest('hex');
+
+      if (computedSign !== sign) {
+        console.warn("[Cryptomus Webhook] Signature verification failed.", { computedSign, sign });
+        return res.status(400).json({ message: "Invalid signature" });
+      }
+
+      const { uuid, status } = data;
+      if (!uuid) {
+        return res.status(400).json({ message: "Missing uuid" });
+      }
+
+      console.log(`[Cryptomus Webhook] Received notification for UUID: ${uuid}, Status: ${status}`);
+
+      if (status === 'paid' || status === 'paid_over') {
+        const result = await db.transaction(async (tx) => {
+          const [payment] = await tx.select().from(payments).where(eq(payments.cryptomusUuid, uuid)).for('update');
+          if (!payment) {
+            return { success: false, error: "Payment not found" };
+          }
+
+          if (payment.status === 'completed') {
+            return { success: true, alreadyCompleted: true };
+          }
+
+          if (payment.status !== 'pending' && payment.status !== 'processing') {
+            return { success: false, error: `Invalid payment status: ${payment.status}` };
+          }
+
+          await tx.update(payments).set({ status: 'processing', updatedAt: new Date() }).where(eq(payments.id, payment.id));
+
+          const [user] = await tx.select().from(telegramUsers).where(eq(telegramUsers.id, payment.telegramUserId)).for('update');
+          if (!user) {
+            return { success: false, error: "User not found" };
+          }
+
+          await tx.update(telegramUsers).set({
+            balance: user.balance + payment.amount
+          }).where(eq(telegramUsers.id, user.id));
+
+          await tx.update(payments).set({ status: 'completed', updatedAt: new Date() }).where(eq(payments.id, payment.id));
+
+          return { success: true, payment, user };
+        });
+
+        if (!result.success) {
+          console.error("[Cryptomus Webhook] Processing failed:", result.error);
+          return res.status(400).json({ message: result.error });
+        }
+
+        if (result.alreadyCompleted) {
+          return res.json({ success: true, message: "Already completed" });
+        }
+
+        const payment = result.payment!;
+        const user = result.user!;
+        const chatId = user.telegramId;
+
+        const activeBot = bot || (await getBotToken() ? new TelegramBot((await getBotToken())!) : null);
+        if (activeBot) {
+          try {
+            await activeBot.sendMessage(chatId, `✅ Cryptomus payment verified! $${(payment.amount / 100).toFixed(2)} has been added to your balance.`);
+          } catch (botErr) {
+            console.error("[Cryptomus Webhook] Failed to send Telegram message to user:", botErr);
+          }
+        }
+
+        const userDisplayName = user.firstName || user.username || "User";
+        io.emit('admin_notification', {
+          type: 'deposit',
+          title: 'New Cryptomus Deposit',
+          message: `${userDisplayName} deposited $${(payment.amount / 100).toFixed(2)} via Cryptomus`,
+          data: {
+            paymentId: payment.id,
+            userId: user.telegramId,
+            amount: payment.amount / 100,
+            txId: uuid
+          }
+        });
+
+        sendAdminPushNotification(
+          'New Cryptomus Deposit',
+          `${userDisplayName} deposited $${(payment.amount / 100).toFixed(2)}`
+        ).catch(console.error);
+      }
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Cryptomus Webhook] Unexpected error:", error);
+      return res.status(500).json({ message: error.message || error });
+    }
+  });
 
   // Push Notification Routes
   app.get("/api/admin/push-key", isAuth, async (req, res) => {

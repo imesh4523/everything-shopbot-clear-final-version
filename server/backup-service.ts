@@ -49,6 +49,20 @@ export class BackupService {
         const winBinPath = path.join(PROJECT_ROOT, "bin", "pg_dump.exe");
         if (fs.existsSync(winBinPath)) {
           pgDumpPath = winBinPath;
+        } else {
+          // Look in Program Files
+          const pgPaths = [
+            "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe",
+            "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe",
+            "C:\\Program Files\\PostgreSQL\\15\\bin\\pg_dump.exe",
+            "C:\\Program Files\\PostgreSQL\\14\\bin\\pg_dump.exe"
+          ];
+          for (const p of pgPaths) {
+            if (fs.existsSync(p)) {
+              pgDumpPath = p;
+              break;
+            }
+          }
         }
       }
 
@@ -61,7 +75,7 @@ export class BackupService {
       ];
 
       const child = spawn(pgDumpPath, args, {
-        shell: true,
+        shell: false,
         env: { ...process.env, PGPASSWORD: "" } // Password is in the URL usually
       });
 
@@ -73,6 +87,9 @@ export class BackupService {
       });
 
       await new Promise((resolve, reject) => {
+        child.on("error", (err) => {
+          reject(err);
+        });
         child.on("close", (code) => {
           if (code === 0) resolve(true);
           else reject(new Error(`pg_dump failed with code ${code}: ${errorOutput}`));

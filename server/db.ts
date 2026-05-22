@@ -10,13 +10,19 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Global setting to ignore self-signed certs for node-postgres (Required for many cloud databases)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const isLocalhost = process.env.DATABASE_URL.includes("localhost") || process.env.DATABASE_URL.includes("127.0.0.1");
 
+let connectionString = process.env.DATABASE_URL;
+if (!isLocalhost) {
+  connectionString = connectionString.replace(/[\?&]sslmode=[^&]*/g, "");
+  if (connectionString.endsWith("?") || connectionString.endsWith("&")) {
+    connectionString = connectionString.slice(0, -1);
+  }
+}
+
 export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: isLocalhost ? false : {
     rejectUnauthorized: false
   }
