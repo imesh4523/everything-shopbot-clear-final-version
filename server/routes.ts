@@ -42,7 +42,9 @@ import {
   getDetectedGroups,
   syncGroupsManually,
   clearForwardCounters,
-  testForwardMessage
+  testForwardMessage,
+  addOrUpdateGroup,
+  removeGroup
 } from "./forward-service";
 
 
@@ -61,6 +63,43 @@ function normalizeAptosAddress(addr: string): string {
     clean = clean.substring(2);
   }
   return clean.padStart(64, '0');
+}
+
+async function sendPhotoWithCache(
+  targetBot: TelegramBot,
+  chatId: number | string,
+  imagePath: string,
+  cacheKey: string,
+  options: TelegramBot.SendPhotoOptions
+): Promise<TelegramBot.Message> {
+  const cachedSetting = await storage.getSetting(cacheKey);
+  if (cachedSetting?.value) {
+    try {
+      console.log(`[Bot API] Sending photo using cached file_id for ${cacheKey}`);
+      return await targetBot.sendPhoto(chatId, cachedSetting.value, options);
+    } catch (err: any) {
+      console.warn(`[Bot API] Failed to send photo using cached file_id for ${cacheKey}: ${err.message || err}. Falling back to file upload.`);
+      await storage.updateSetting(cacheKey, "");
+    }
+  }
+
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Photo file not found at: ${imagePath}`);
+  }
+  const photoBuffer = fs.readFileSync(imagePath);
+
+  console.log(`[Bot API] Uploading photo buffer for ${cacheKey}`);
+  const msg = await targetBot.sendPhoto(chatId, photoBuffer, options);
+
+  if (msg.photo && msg.photo.length > 0) {
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    console.log(`[Bot API] Successfully uploaded photo. Caching file_id: ${fileId} for ${cacheKey}`);
+    await storage.updateSetting(cacheKey, fileId).catch(err => {
+      console.error(`[Bot API] Failed to save cached file_id:`, err);
+    });
+  }
+
+  return msg;
 }
 
 async function verifyDepositViaBinance(
@@ -1860,11 +1899,21 @@ const patchBotMethods = (targetBot: TelegramBot) => {
     return text.replace(/<tg-emoji[^>]*>(.*?)<\/tg-emoji>/gi, '$1');
   };
 
+  const isDocumentInvalid = (err: any): boolean => {
+    if (!err) return false;
+    const msg = err.message || "";
+    const desc = err.description || err.response?.body?.description || "";
+    const str = String(err);
+    return msg.includes('DOCUMENT_INVALID') || 
+           desc.includes('DOCUMENT_INVALID') || 
+           str.includes('DOCUMENT_INVALID');
+  };
+
   targetBot.sendMessage = async function(chatId: any, text: string, options?: any) {
     try {
       return await originalSendMessage(chatId, text, options);
     } catch (err: any) {
-      if (err.message && err.message.includes('DOCUMENT_INVALID') && typeof text === 'string' && text.includes('<tg-emoji')) {
+      if (isDocumentInvalid(err) && typeof text === 'string' && text.includes('<tg-emoji')) {
         console.warn(`[Bot API] DOCUMENT_INVALID detected. Stripping tg-emoji tags and retrying sendMessage to ${chatId}`);
         const cleanText = stripEmojis(text);
         return await originalSendMessage(chatId, cleanText, options);
@@ -1877,7 +1926,7 @@ const patchBotMethods = (targetBot: TelegramBot) => {
     try {
       return await originalEditMessageText(text, options);
     } catch (err: any) {
-      if (err.message && err.message.includes('DOCUMENT_INVALID') && typeof text === 'string' && text.includes('<tg-emoji')) {
+      if (isDocumentInvalid(err) && typeof text === 'string' && text.includes('<tg-emoji')) {
         console.warn(`[Bot API] DOCUMENT_INVALID detected. Stripping tg-emoji tags and retrying editMessageText`);
         const cleanText = stripEmojis(text);
         return await originalEditMessageText(cleanText, options);
@@ -1891,7 +1940,7 @@ const patchBotMethods = (targetBot: TelegramBot) => {
       return await originalSendPhoto(chatId, photo, options);
     } catch (err: any) {
       const caption = options?.caption;
-      if (err.message && err.message.includes('DOCUMENT_INVALID') && typeof caption === 'string' && caption.includes('<tg-emoji')) {
+      if (isDocumentInvalid(err) && typeof caption === 'string' && caption.includes('<tg-emoji')) {
         console.warn(`[Bot API] DOCUMENT_INVALID detected. Stripping tg-emoji tags and retrying sendPhoto to ${chatId}`);
         const cleanOptions = { ...options, caption: stripEmojis(caption) };
         return await originalSendPhoto(chatId, photo, cleanOptions);
@@ -1905,7 +1954,7 @@ const patchBotMethods = (targetBot: TelegramBot) => {
       return await originalSendVideo(chatId, video, options);
     } catch (err: any) {
       const caption = options?.caption;
-      if (err.message && err.message.includes('DOCUMENT_INVALID') && typeof caption === 'string' && caption.includes('<tg-emoji')) {
+      if (isDocumentInvalid(err) && typeof caption === 'string' && caption.includes('<tg-emoji')) {
         console.warn(`[Bot API] DOCUMENT_INVALID detected. Stripping tg-emoji tags and retrying sendVideo to ${chatId}`);
         const cleanOptions = { ...options, caption: stripEmojis(caption) };
         return await originalSendVideo(chatId, video, cleanOptions);
@@ -1919,7 +1968,7 @@ const patchBotMethods = (targetBot: TelegramBot) => {
       return await originalSendDocument(chatId, doc, options);
     } catch (err: any) {
       const caption = options?.caption;
-      if (err.message && err.message.includes('DOCUMENT_INVALID') && typeof caption === 'string' && caption.includes('<tg-emoji')) {
+      if (isDocumentInvalid(err) && typeof caption === 'string' && caption.includes('<tg-emoji')) {
         console.warn(`[Bot API] DOCUMENT_INVALID detected. Stripping tg-emoji tags and retrying sendDocument to ${chatId}`);
         const cleanOptions = { ...options, caption: stripEmojis(caption) };
         return await originalSendDocument(chatId, doc, cleanOptions);
@@ -2009,7 +2058,9 @@ const setupBotProfile = async (targetBot: TelegramBot) => {
 const setupBotHandlers = (targetBot: TelegramBot) => {
   // Polling error handling
   targetBot.on('polling_error', (error: any) => {
-    if (!(error.code === 'ETELEGRAM' && error.message.includes('409 Conflict'))) {
+    if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
+      console.warn(`[Bot Polling Warning] 409 Conflict for token hash ${targetBot.token ? targetBot.token.substring(0, 12) : 'none'}. Another bot instance is polling or webhook is set.`);
+    } else {
       console.error('Bot polling error:', error);
     }
   });
@@ -2028,6 +2079,29 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
       } catch (err) {
         console.error('Failed to auto-register group:', err);
       }
+
+      // Sync to forwarding groups if using the same token
+      try {
+        const mainToken = await getBotToken();
+        const forwardTokenSetting = await storage.getSetting("TG_FORWARD_BOT_TOKEN");
+        const forwardToken = forwardTokenSetting?.value;
+        if (forwardToken === mainToken && targetBot.token === mainToken) {
+          await addOrUpdateGroup(chat.id.toString(), chat.title || 'Auto-detected Group');
+        }
+      } catch (err) {
+        console.error('Failed to sync forward group in my_chat_member:', err);
+      }
+    } else if (update.new_chat_member.status === 'left' || update.new_chat_member.status === 'kicked') {
+      try {
+        const mainToken = await getBotToken();
+        const forwardTokenSetting = await storage.getSetting("TG_FORWARD_BOT_TOKEN");
+        const forwardToken = forwardTokenSetting?.value;
+        if (forwardToken === mainToken && targetBot.token === mainToken) {
+          await removeGroup(chat.id.toString());
+        }
+      } catch (err) {
+        console.error('Failed to remove forward group in my_chat_member:', err);
+      }
     }
   });
 
@@ -2045,6 +2119,18 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
       } catch (err) {
         console.error('Failed to auto-register group from message:', err);
       }
+
+      // Sync to forwarding groups if using the same token
+      try {
+        const mainToken = await getBotToken();
+        const forwardTokenSetting = await storage.getSetting("TG_FORWARD_BOT_TOKEN");
+        const forwardToken = forwardTokenSetting?.value;
+        if (forwardToken === mainToken && targetBot.token === mainToken) {
+          await addOrUpdateGroup(msg.chat.id.toString(), msg.chat.title || 'Auto-detected Group');
+        }
+      } catch (err) {
+        console.error('Failed to sync forward group in message:', err);
+      }
     }
   });
 
@@ -2056,22 +2142,34 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
   targetBot.on('callback_query', async (query) => {
     try {
       const callbackId = query.id;
-      if (processedCallbacks.has(callbackId)) return;
+      const data = query.data;
+      const userId = query.from?.id.toString();
+      console.log(`[Bot Callback] callback_query event received. data=${data}, userId=${userId}, callbackId=${callbackId}`);
+
+      if (processedCallbacks.has(callbackId)) {
+        console.log(`[Bot Callback] Duplicate callbackId ${callbackId} skipped.`);
+        return;
+      }
       processedCallbacks.add(callbackId);
       setTimeout(() => processedCallbacks.delete(callbackId), 10000);
 
       const chatId = query.message?.chat.id;
-      const data = query.data;
-      const userId = query.from?.id.toString();
-      if (!chatId || !data || !userId) return;
+      if (!chatId || !data || !userId) {
+        console.log(`[Bot Callback] Missing required info: chatId=${chatId}, data=${data}, userId=${userId}`);
+        return;
+      }
 
       // 1. Immediately answer the callback query to clear client spinner
       try {
+        console.log(`[Bot Callback] Answering callback query: ${callbackId}`);
         await targetBot.answerCallbackQuery(query.id);
-      } catch (err) { }
+      } catch (err: any) {
+        console.error(`[Bot Callback] Failed to answer callback query:`, err.message);
+      }
 
       // Only handle actions on the main bot
-      const isMainBot = targetBot === bot;
+      const isMainBot = targetBot.token === bot?.token;
+      console.log(`[Bot Callback] Checking if main bot: targetBot.token === bot.token is ${isMainBot}. targetBot token hash=${targetBot.token ? targetBot.token.substring(0, 12) : 'none'}, bot token hash=${bot?.token ? bot.token.substring(0, 12) : 'none'}`);
       if (!isMainBot) return;
 
       const tgUser = await storage.getTelegramUser(userId);
@@ -2763,14 +2861,14 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         } else if (walletToCopy === 'aptos') {
           walletToCopy = (await storage.getSetting('APTOS_WALLET_ADDRESS'))?.value || "Not Set";
         }
-        await targetBot.sendMessage(chatId, `📋 <b>Wallet Address sent!</b> Tap/long-press below to copy:`, { parse_mode: 'HTML' });
+        await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>Wallet Address sent!</b> You can now long-press to copy it. <tg-emoji emoji-id="5231102735817918643">📋</tg-emoji>`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${walletToCopy}</code>`, { parse_mode: 'HTML' });
         return;
       }
 
       if (data.startsWith('copy_amount_')) {
         const amountToCopy = data.substring(12);
-        await targetBot.sendMessage(chatId, `💵 <b>Deposit Amount sent!</b> Tap/long-press below to copy:`, { parse_mode: 'HTML' });
+        await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>Deposit Amount sent!</b> You can now long-press to copy it. <tg-emoji emoji-id="5231102735817918643">📋</tg-emoji>`, { parse_mode: 'HTML' });
         targetBot.sendMessage(chatId, `<code>${amountToCopy}</code>`, { parse_mode: 'HTML' });
         return;
       }
@@ -4649,9 +4747,9 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               parse_mode: 'Markdown',
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: '🌀 Go to payment', url: paymentData.url }],
-                  [{ text: '🔄 Check payment', callback_data: `check_payment_${newPayment.id}` }]
-                ]
+                  [{ text: 'Go to payment', url: paymentData.url, icon_custom_emoji_id: '5373123633415695601' }],
+                  [{ text: 'Check payment', callback_data: `check_payment_${newPayment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
+                ] as any
               }
             });
           } else {
@@ -4709,48 +4807,26 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
         const keyboard = [
-          [{ text: `📋 Copy ${method} Pay ID: ${payId}`, callback_data: `copy_payid_${payId}` }],
-          [{ text: `📋 Copy User ID: ${userId}`, callback_data: `copy_userid_${userId}` }],
-          [{ text: '🔄 Check payment', callback_data: `check_payment_${payment.id}` }]
-        ];
+          [{ text: `Copy ${method} Pay ID: ${payId}`, callback_data: `copy_payid_${payId}`, icon_custom_emoji_id: '5334982154868783692' }],
+          [{ text: `Copy User ID: ${userId}`, callback_data: `copy_userid_${userId}`, icon_custom_emoji_id: '5334982154868783692' }],
+          [{ text: 'Check payment', callback_data: `check_payment_${payment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
+        ] as any[][];
 
         console.log(`Sending ${method} payment message with keyboard:`, JSON.stringify(keyboard));
 
         const imagePath = path.resolve(process.cwd(), 'public/assets/binance_pay_new.png');
-        console.log(`Checking for Binance Pay image at: ${imagePath}`);
-
         try {
-          if (fs.existsSync(imagePath)) {
-            console.log('Binance Pay image found, sending as stream...');
-            const photoStream = fs.createReadStream(imagePath);
-            targetBot.sendPhoto(chatId, photoStream, {
-              caption: response,
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: keyboard
-              }
-            }).catch(err => {
-              console.error('Failed to send Binance photo from stream:', err);
-              targetBot.sendMessage(chatId, response, {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                  inline_keyboard: keyboard
-                }
-              });
-            });
-          } else {
-            console.log('Binance Pay image NOT found at', imagePath);
-            targetBot.sendMessage(chatId, response, {
-              parse_mode: 'Markdown',
-              reply_markup: {
-                inline_keyboard: keyboard
-              }
-            });
-          }
-        } catch (fsErr) {
-          console.error('File system error during Binance image check:', fsErr);
-          targetBot.sendMessage(chatId, response, {
-            parse_mode: 'Markdown',
+          await sendPhotoWithCache(targetBot, chatId, imagePath, 'FILE_ID_BINANCE_PAY', {
+            caption: response,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: keyboard
+            }
+          });
+        } catch (photoErr) {
+          console.error("Failed to send Binance Pay photo:", photoErr);
+          await targetBot.sendMessage(chatId, response, {
+            parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: keyboard
             }
@@ -4793,7 +4869,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="5373123633415695601">🌐</tg-emoji> TRC20 Address: <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> TRC20 Address: <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
             `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
             `• Please transfer this <b>exact amount</b>.\n` +
@@ -4802,26 +4878,18 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
           const keyboard = [
-            [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_trc20` }],
-            [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }],
-            [{ text: '🔄 Check payment', callback_data: `check_payment_${payment.id}` }]
-          ];
+            [{ text: `Copy Wallet Address`, callback_data: `copy_wallet_trc20`, icon_custom_emoji_id: '5334982154868783692' }],
+            [{ text: `Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}`, icon_custom_emoji_id: '5334982154868783692' }],
+            [{ text: 'Check payment', callback_data: `check_payment_${payment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
+          ] as any[][];
 
           const imagePath = path.resolve(process.cwd(), 'public/assets/usdt_trc20.png');
           try {
-            if (fs.existsSync(imagePath)) {
-              const photoStream = fs.createReadStream(imagePath);
-              await targetBot.sendPhoto(chatId, photoStream, {
-                caption: responseMsg,
-                parse_mode: 'HTML',
-                reply_markup: { inline_keyboard: keyboard }
-              });
-            } else {
-              await targetBot.sendMessage(chatId, responseMsg, {
-                parse_mode: 'HTML',
-                reply_markup: { inline_keyboard: keyboard }
-              });
-            }
+            await sendPhotoWithCache(targetBot, chatId, imagePath, 'FILE_ID_USDT_TRC20', {
+              caption: responseMsg,
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: keyboard }
+            });
           } catch (photoErr) {
             console.error("Failed to send TRC20 photo:", photoErr);
             await targetBot.sendMessage(chatId, responseMsg, {
@@ -4870,7 +4938,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
 
           const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: Aptos (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `<tg-emoji emoji-id="5451624467069383615">⚡</tg-emoji> Aptos Address: <code>${wallet}</code>\n` +
+            `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> Aptos Address: <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> Transfer amount: <code>${amount.toFixed(2)}$</code>\n\n` +
             `<tg-emoji emoji-id="6327875123646829719">⚠️</tg-emoji> <b>IMPORTANT</b>\n` +
             `• Please transfer this <b>exact amount</b>.\n` +
@@ -4879,26 +4947,18 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             `<tg-emoji emoji-id="6010111371251815589">⏳</tg-emoji> After payment, click on Check payment`;
 
           const keyboard = [
-            [{ text: `📋 Copy Wallet Address`, callback_data: `copy_wallet_aptos` }],
-            [{ text: `📋 Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}` }],
-            [{ text: '🔄 Check payment', callback_data: `check_payment_${payment.id}` }]
-          ];
+            [{ text: `Copy Wallet Address`, callback_data: `copy_wallet_aptos`, icon_custom_emoji_id: '5334982154868783692' }],
+            [{ text: `Copy Amount: ${amount.toFixed(2)}`, callback_data: `copy_amount_${amount.toFixed(2)}`, icon_custom_emoji_id: '5334982154868783692' }],
+            [{ text: 'Check payment', callback_data: `check_payment_${payment.id}`, icon_custom_emoji_id: '6010111371251815589' }]
+          ] as any[][];
 
           const imagePath = path.resolve(process.cwd(), 'public/assets/usdt_aptos.png');
           try {
-            if (fs.existsSync(imagePath)) {
-              const photoStream = fs.createReadStream(imagePath);
-              await targetBot.sendPhoto(chatId, photoStream, {
-                caption: responseMsg,
-                parse_mode: 'HTML',
-                reply_markup: { inline_keyboard: keyboard }
-              });
-            } else {
-              await targetBot.sendMessage(chatId, responseMsg, {
-                parse_mode: 'HTML',
-                reply_markup: { inline_keyboard: keyboard }
-              });
-            }
+            await sendPhotoWithCache(targetBot, chatId, imagePath, 'FILE_ID_USDT_APTOS', {
+              caption: responseMsg,
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: keyboard }
+            });
           } catch (photoErr) {
             console.error("Failed to send Aptos photo:", photoErr);
             await targetBot.sendMessage(chatId, responseMsg, {

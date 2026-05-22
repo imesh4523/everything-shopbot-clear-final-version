@@ -63,7 +63,7 @@ export async function saveDetectedGroups(groups: ForwardGroup[]) {
   }
 }
 
-async function addOrUpdateGroup(groupId: string, groupName: string) {
+export async function addOrUpdateGroup(groupId: string, groupName: string) {
   const groups = await getDetectedGroups();
   const index = groups.findIndex(g => g.groupId === groupId);
   if (index >= 0) {
@@ -83,7 +83,7 @@ async function addOrUpdateGroup(groupId: string, groupName: string) {
   }
 }
 
-async function removeGroup(groupId: string) {
+export async function removeGroup(groupId: string) {
   let groups = await getDetectedGroups();
   const initialLength = groups.length;
   groups = groups.filter(g => g.groupId !== groupId);
@@ -310,33 +310,44 @@ export async function reinitForwardBot(token: string) {
     forwardBot = null;
   }
 
-  log("Starting forward bot polling...", "telegram-forward");
-  forwardBot = new TelegramBot(token, { polling: true });
+  const mainTokenSetting = await storage.getSetting("TELEGRAM_BOT_TOKEN");
+  const mainToken = mainTokenSetting?.value;
+  const isSameToken = token === mainToken;
 
-  forwardBot.on("polling_error", (err: any) => {
-    if (!(err.code === "ETELEGRAM" && err.message.includes("409 Conflict"))) {
-      console.error("[FORWARD BOT] Polling error:", err.message);
-    }
-  });
+  if (isSameToken) {
+    log("Forward bot token is identical to main bot token. Disabling polling to prevent conflict.", "telegram-forward");
+    forwardBot = new TelegramBot(token, { polling: false });
+  } else {
+    log("Starting forward bot polling (different token)...", "telegram-forward");
+    forwardBot = new TelegramBot(token, { polling: true });
 
-  forwardBot.on("my_chat_member", async (update) => {
-    const chat = update.chat;
-    const status = update.new_chat_member.status;
-    if (chat.type === "group" || chat.type === "supergroup") {
-      if (status === "member" || status === "administrator") {
-        await addOrUpdateGroup(chat.id.toString(), chat.title || "Unknown Group");
-      } else if (status === "left" || status === "kicked") {
-        await removeGroup(chat.id.toString());
+    forwardBot.on("polling_error", (err: any) => {
+      if (err.code === "ETELEGRAM" && err.message.includes("409 Conflict")) {
+        console.warn("[FORWARD BOT Polling Error] 409 Conflict: another instance is polling.");
+      } else {
+        console.error("[FORWARD BOT] Polling error:", err.message);
       }
-    }
-  });
+    });
 
-  forwardBot.on("message", async (msg) => {
-    const chat = msg.chat;
-    if (chat.type === "group" || chat.type === "supergroup") {
-      await addOrUpdateGroup(chat.id.toString(), chat.title || "Unknown Group");
-    }
-  });
+    forwardBot.on("my_chat_member", async (update) => {
+      const chat = update.chat;
+      const status = update.new_chat_member.status;
+      if (chat.type === "group" || chat.type === "supergroup") {
+        if (status === "member" || status === "administrator") {
+          await addOrUpdateGroup(chat.id.toString(), chat.title || "Unknown Group");
+        } else if (status === "left" || status === "kicked") {
+          await removeGroup(chat.id.toString());
+        }
+      }
+    });
+
+    forwardBot.on("message", async (msg) => {
+      const chat = msg.chat;
+      if (chat.type === "group" || chat.type === "supergroup") {
+        await addOrUpdateGroup(chat.id.toString(), chat.title || "Unknown Group");
+      }
+    });
+  }
 }
 
 /**
