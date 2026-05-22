@@ -2755,7 +2755,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         ];
 
         if (isSpecialOffersEnabled && hasActiveOffers) {
-          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276043849160724882' }]);
+          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276134137963222688' }]);
         }
 
         const keyboard = { inline_keyboard };
@@ -4572,7 +4572,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         ];
 
         if (isSpecialOffersEnabled) {
-          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276043849160724882' }]);
+          inline_keyboard.push([{ text: 'Special Offers', callback_data: 'special_offers', icon_custom_emoji_id: '6276134137963222688' }]);
         }
 
         const keyboard = { inline_keyboard };
