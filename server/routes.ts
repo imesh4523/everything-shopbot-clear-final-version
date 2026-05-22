@@ -4876,7 +4876,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           status: 'pending'
         });
 
-        const response = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: ${method}</b>\n` +
+        const response = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: ${method}</b>\n` +
           `━━━━━━━━━━━━━━━\n` +
           `<tg-emoji emoji-id="6276090299232031662">🆔</tg-emoji> <b>${method} Pay ID:</b> <code>${payId}</code>\n` +
           `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount}$</code>\n` +
@@ -4948,7 +4948,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             lastAction: `awaiting_trc20_txid_${payment.id}`
           });
 
-          const responseMsg = `<tg-emoji emoji-id="5388622778817589921">💰</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
+          const responseMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>Top-up: TRC20 (USDT)</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
             `<tg-emoji emoji-id="6276090299232031662">✅</tg-emoji> <b>TRC20 Address:</b> <code>${wallet}</code>\n` +
             `<tg-emoji emoji-id="5231102735817918643">💵</tg-emoji> <b>Transfer amount:</b> <code>${amount.toFixed(2)}$</code>\n\n` +
