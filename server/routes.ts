@@ -2748,7 +2748,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         }
 
         const inline_keyboard = [
-          [{ text: '💰 Add funds', callback_data: 'add_funds' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
+          [{ text: '💰 Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
           isAutomationEnabled
             ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
             : [{ text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
@@ -4185,7 +4185,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               return targetBot.sendMessage(chatId, errorMsg, {
                 parse_mode: 'HTML',
                 reply_markup: {
-                  inline_keyboard: [[{ text: '💰 Add Funds', callback_data: 'add_funds' }]]
+                  inline_keyboard: [[{ text: '💰 Add Funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }]]
                 }
               });
             }
@@ -4565,7 +4565,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
         const shopUrl = `${baseUrl}/shop`;
 
         const inline_keyboard = [
-          [{ text: '💰 Add funds', callback_data: 'add_funds' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
+          [{ text: '💰 Add funds', callback_data: 'add_funds', icon_custom_emoji_id: '5201692367437974073' }, { text: '📜 Purchase history', callback_data: 'purchase_history' }],
           isAutomationEnabled
             ? [{ text: '🤖 Automation', callback_data: 'automation_menu' }, { text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
             : [{ text: '📖 Tutorial', callback_data: 'tutorial_menu' }]
