@@ -252,6 +252,16 @@ function LiveTOTP({ secret, onCopy }: { secret: string, onCopy: (text: string) =
 export default function MiniAppShop() {
   const { theme } = useTheme();
   const { toast } = useToast();
+
+  // Immediately set body background on first render (before useEffect) to avoid flash
+  const isDarkMode = theme === "dark" || (theme === "system" && typeof window !== 'undefined' && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  if (typeof window !== 'undefined') {
+    const bg = isDarkMode ? '#121212' : '#f8f7ff';
+    document.body.style.background = bg;
+    document.body.style.backgroundColor = bg;
+  }
+
+
   const [activeTab, setActiveTab] = useState<Tab>("store");
   const [selectedProduct, setSelectedProduct] = useState<(Product & { stockCount?: number }) | null>(null);
   const [viewingOrder, setViewingOrder] = useState<(Order & { product: Product, credential: any }) | null>(null);
@@ -308,14 +318,17 @@ export default function MiniAppShop() {
     const webApp = (window as any).Telegram?.WebApp;
     const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
+    const bgLight = '#f8f7ff';
+    const bgDark = '#121212';
+    const bg = isDark ? bgDark : bgLight;
+
+    // Force body background via inline style — reliable across all browsers & WebViews
+    document.body.style.background = bg;
+    document.body.style.backgroundColor = bg;
+
     if (webApp) {
-      if (isDark) {
-        webApp.headerColor = '#121212';
-        webApp.backgroundColor = '#121212';
-      } else {
-        webApp.headerColor = '#ffffff';
-        webApp.backgroundColor = '#f8f7ff';
-      }
+      webApp.setHeaderColor(isDark ? '#1a1a1a' : '#ffffff');
+      webApp.setBackgroundColor(bg);
     }
 
     if (isDark) {
@@ -326,6 +339,8 @@ export default function MiniAppShop() {
 
     return () => {
       document.body.classList.remove('tg-body');
+      document.body.style.background = '';
+      document.body.style.backgroundColor = '';
     };
   }, [theme]);
 
@@ -875,7 +890,7 @@ export default function MiniAppShop() {
 
   if (userLoading || productsLoading) {
     return (
-      <div className="min-h-screen bg-[#f8f7ff] flex flex-col items-center justify-center p-8 overflow-hidden">
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 overflow-hidden" style={{ background: '#f8f7ff' }}>
         <div className="relative w-16 h-16">
           <motion.div
             className="w-full h-full relative"
@@ -913,7 +928,7 @@ export default function MiniAppShop() {
   }
 
   return (
-    <div className="tg-mini-app min-h-screen bg-white dark:bg-background text-neutral-900 dark:text-foreground font-sans selection:bg-purple-200 pb-32">
+    <div className="tg-mini-app min-h-screen text-neutral-900 dark:text-foreground font-sans selection:bg-purple-200 pb-32" style={{ background: 'inherit' }}>
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/95 dark:bg-background/80 backdrop-blur-2xl border-b border-purple-50/50 dark:border-white/10 px-6 py-5">
         <div className="flex items-center justify-between max-w-md mx-auto">
