@@ -40,6 +40,7 @@ import {
   getForwardConfig,
   updateForwardConfig,
   getDetectedGroups,
+  saveDetectedGroups,
   syncGroupsManually,
   clearForwardCounters,
   testForwardMessage,
@@ -5686,6 +5687,22 @@ BackupService.startBackupScheduler().catch(err => console.error("Backup schedule
     try {
       const cleared = await clearForwardCounters();
       res.json({ success: true, groups: cleared });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/forward/groups/:groupId/toggle", isAuth, async (req, res) => {
+    const { groupId } = req.params;
+    try {
+      const groups = await getDetectedGroups();
+      const group = groups.find(g => g.groupId === groupId);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found." });
+      }
+      group.disabled = !group.disabled;
+      await saveDetectedGroups(groups);
+      res.json({ success: true, groups });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

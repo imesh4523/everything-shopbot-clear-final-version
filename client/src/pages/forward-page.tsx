@@ -30,6 +30,7 @@ interface ForwardGroup {
   groupName: string;
   sentCount: number;
   lastSentAt: string | null;
+  disabled?: boolean;
 }
 
 interface ForwardConfig {
@@ -170,6 +171,34 @@ export default function ForwardPage() {
     onError: (err: any) => {
       toast({
         title: "Failed to Reset",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const toggleGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const res = await fetch(`/api/forward/groups/${groupId}/toggle`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to toggle group status.");
+      }
+      return res.json() as Promise<{ success: boolean; groups: ForwardGroup[] }>;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/forward/groups"], data.groups);
+      setGroups(data.groups);
+      toast({
+        title: "Status Updated",
+        description: "Group forwarding status updated successfully.",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to Update",
         description: err.message,
         variant: "destructive",
       });
@@ -533,6 +562,7 @@ export default function ForwardPage() {
                         <tr className="border-b border-white/5 text-left">
                           <th className="pb-3 text-xs font-black uppercase tracking-wider text-white/30">Group Name</th>
                           <th className="pb-3 text-xs font-black uppercase tracking-wider text-white/30">Group ID</th>
+                          <th className="pb-3 text-xs font-black uppercase tracking-wider text-white/30 text-center">Status</th>
                           <th className="pb-3 text-xs font-black uppercase tracking-wider text-white/30 text-center">Forwards</th>
                           <th className="pb-3 text-xs font-black uppercase tracking-wider text-white/30 text-right">Last Sent</th>
                         </tr>
@@ -551,6 +581,21 @@ export default function ForwardPage() {
                             </td>
                             <td className="py-4 text-xs font-mono text-white/30 pr-4">
                               {group.groupId}
+                            </td>
+                            <td className="py-4 text-center pr-4">
+                              <Button
+                                onClick={() => toggleGroupMutation.mutate(group.groupId)}
+                                disabled={toggleGroupMutation.isLoading}
+                                variant="outline"
+                                size="sm"
+                                className={`rounded-xl text-[10px] font-black uppercase tracking-widest px-3.5 py-1.5 transition-all ${
+                                  group.disabled 
+                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20' 
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                }`}
+                              >
+                                {group.disabled ? "Restricted" : "Active"}
+                              </Button>
                             </td>
                             <td className="py-4 text-center pr-4">
                               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-purple-500/10 border border-purple-500/20 text-purple-400 group-hover/row:bg-purple-500/25 transition-all">

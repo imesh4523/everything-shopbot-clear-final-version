@@ -172,7 +172,14 @@ async function performForwardJob() {
     return;
   }
 
-  log(`Running forward job. Source: ${fromChatId} message ${messageId} to ${groups.length} groups.`, "telegram-forward");
+  // Filter out disabled groups
+  const activeGroups = groups.filter(g => !g.disabled);
+  if (activeGroups.length === 0) {
+    log("Forward job running but all groups are disabled/restricted.", "telegram-forward");
+    return;
+  }
+
+  log(`Running forward job. Source: ${fromChatId} message ${messageId} to ${activeGroups.length} active groups.`, "telegram-forward");
 
   if (!forwardBot) {
     log("Forward job running but forwardBot is null.", "telegram-forward");
@@ -182,6 +189,8 @@ async function performForwardJob() {
   const updatedGroups = [...groups];
 
   for (const group of updatedGroups) {
+    if (group.disabled) continue; // Skip disabled groups
+
     try {
       await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
       group.sentCount += 1;
@@ -216,6 +225,12 @@ export async function testForwardMessage(): Promise<{ success: boolean; totalGro
     throw new Error("No target groups detected. Add the bot to your groups first.");
   }
 
+  // Filter active groups for forwarding
+  const activeGroups = groups.filter(g => !g.disabled);
+  if (activeGroups.length === 0) {
+    throw new Error("All detected groups are currently disabled/restricted. Enable at least one to test.");
+  }
+
   if (!forwardBot) {
     throw new Error("Forward bot is not initialized. Please configure a valid Bot Token first.");
   }
@@ -225,6 +240,8 @@ export async function testForwardMessage(): Promise<{ success: boolean; totalGro
   const errors: string[] = [];
 
   for (const group of updatedGroups) {
+    if (group.disabled) continue; // Skip disabled groups
+
     try {
       await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
       group.sentCount += 1;
@@ -241,7 +258,7 @@ export async function testForwardMessage(): Promise<{ success: boolean; totalGro
 
   return {
     success: sentCount > 0,
-    totalGroups: groups.length,
+    totalGroups: activeGroups.length,
     sentCount,
     errors
   };
