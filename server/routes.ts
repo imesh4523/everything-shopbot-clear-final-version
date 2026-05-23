@@ -34,7 +34,8 @@ import {
   logoutClient, 
   isClientConnected,
   getPeerDetails,
-  getTelegramClient
+  getTelegramClient,
+  downloadMessageMedia
 } from "./telegram-client-service";
 import {
   initForwardService,
@@ -5796,6 +5797,37 @@ BackupService.startBackupScheduler().catch(err => console.error("Backup schedule
     } catch (err: any) {
       console.error("[Profile Photo Error]", err);
       return res.status(500).send("Failed to load photo");
+    }
+  });
+
+  app.get("/api/telegram-client/message-media/:chatId/:messageId", isAuth, async (req, res) => {
+    const { chatId, messageId } = req.params;
+    try {
+      // Check cache first
+      const cacheDir = path.join(process.cwd(), 'public', 'uploads', 'message_media');
+      const cacheFilePath = path.join(cacheDir, `${chatId}_${messageId}.jpg`);
+
+      if (fs.existsSync(cacheFilePath)) {
+        return res.sendFile(cacheFilePath);
+      }
+
+      const buffer = await downloadMessageMedia(chatId, Number(messageId));
+      if (!buffer || buffer.length === 0) {
+        return res.status(404).send("Failed to download media");
+      }
+
+      // Save to cache directory
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      }
+      fs.writeFileSync(cacheFilePath, buffer);
+
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error("[Message Media Error]", err);
+      return res.status(500).send("Failed to load message media");
     }
   });
 

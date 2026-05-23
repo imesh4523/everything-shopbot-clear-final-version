@@ -53,6 +53,7 @@ interface Message {
   out: boolean;
   senderId: string | null;
   senderName: string;
+  hasPhoto?: boolean;
 }
 
 export default function TelegramClientPage() {
@@ -986,6 +987,16 @@ export default function TelegramClientPage() {
                             : "bg-slate-900/60 border border-slate-800/40 text-slate-200 rounded-bl-none shadow-slate-950/50 backdrop-blur-sm"
                         }`}
                       >
+                        {msg.hasPhoto && (
+                          <div className="mb-2 max-w-full overflow-hidden rounded-lg">
+                            <img
+                              src={`/api/telegram-client/message-media/${selectedChat.id}/${msg.id}`}
+                              alt="Message media"
+                              className="max-h-60 w-full object-contain rounded bg-slate-950/40 hover:scale-[1.02] transition-transform cursor-pointer"
+                              onClick={() => window.open(`/api/telegram-client/message-media/${selectedChat.id}/${msg.id}`, '_blank')}
+                            />
+                          </div>
+                        )}
                         <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                       </div>
 

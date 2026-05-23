@@ -94,6 +94,8 @@ function setupEventListeners(tgClient: TelegramClient) {
       else if (chatPeer.channelId) chatId = chatPeer.channelId.toString();
     }
 
+    const hasPhoto = !!(message.photo || (message.media && (message.media as any).photo));
+
     const msgData = {
       id: message.id,
       text: message.message || "",
@@ -102,6 +104,7 @@ function setupEventListeners(tgClient: TelegramClient) {
       chatId: chatId,
       senderId: message.senderId ? message.senderId.toString() : null,
       senderName: senderName,
+      hasPhoto,
     };
 
     if (ioInstance) {
@@ -304,6 +307,8 @@ export async function getChatMessages(chatId: string, limit = 50) {
       }
     } catch (e) {}
 
+    const hasPhoto = !!(m.photo || (m.media && (m.media as any).photo));
+
     return {
       id: m.id,
       text: m.message || "",
@@ -311,6 +316,7 @@ export async function getChatMessages(chatId: string, limit = 50) {
       out: m.out,
       senderId: m.senderId ? m.senderId.toString() : null,
       senderName,
+      hasPhoto,
     };
   }));
 
@@ -458,6 +464,32 @@ export async function getPeerDetails(peerId: string) {
 
 export function getTelegramClient() {
   return client;
+}
+
+export async function downloadMessageMedia(chatId: string, messageId: number) {
+  if (!client || !client.connected) {
+    throw new Error("Telegram client is not connected.");
+  }
+
+  let peer;
+  try {
+    peer = await client.getInputEntity(chatId);
+  } catch (err) {
+    peer = chatId;
+  }
+
+  const messages = await client.getMessages(peer, { ids: [messageId] });
+  if (!messages || messages.length === 0) {
+    return null;
+  }
+
+  const message = messages[0];
+  if (!message.media) {
+    return null;
+  }
+
+  const buffer = await client.downloadMedia(message.media, {});
+  return buffer;
 }
 
 
