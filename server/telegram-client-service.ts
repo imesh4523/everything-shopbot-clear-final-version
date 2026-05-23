@@ -51,6 +51,9 @@ async function autoConnect() {
       client = new TelegramClient(stringSession, apiId, apiHash, {
         connectionRetries: 5,
         useWSS: true,
+        deviceModel: process.env.TG_CLIENT_DEVICE_MODEL || "MAC M5",
+        systemVersion: process.env.TG_CLIENT_SYSTEM_VERSION || "macOS",
+        appVersion: process.env.TG_CLIENT_APP_VERSION || "encrypted sesion",
       });
 
       await client.connect();
@@ -127,6 +130,9 @@ export async function sendOtpCode(apiId: number, apiHash: string, phoneNumber: s
   tempClient = new TelegramClient(stringSession, apiId, apiHash, {
     connectionRetries: 3,
     useWSS: true,
+    deviceModel: process.env.TG_CLIENT_DEVICE_MODEL || "MAC M5",
+    systemVersion: process.env.TG_CLIENT_SYSTEM_VERSION || "macOS",
+    appVersion: process.env.TG_CLIENT_APP_VERSION || "encrypted sesion",
   });
 
   await tempClient.connect();
