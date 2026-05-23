@@ -25,10 +25,15 @@ import {
   X,
   Minimize2,
   Copy,
-  PlayCircle
+  PlayCircle,
+  Database
 } from "lucide-react";
 
 import { format } from "date-fns";
+import { FaAws } from "react-icons/fa";
+import { SiDigitalocean, SiGooglecloud, SiVultr, SiHetzner, SiBinance } from "react-icons/si";
+import { VscAzure } from "react-icons/vsc";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -622,7 +627,7 @@ export default function MiniAppShop() {
             { id: 'google', label: 'GCP', icon: <SiGooglecloud className="w-4 h-4" /> },
             { id: 'vultr', label: 'Vultr', icon: <SiVultr className="w-4 h-4" /> },
             { id: 'hetzner', label: 'Hetzner', icon: <SiHetzner className="w-4 h-4" /> },
-            { id: 'oracle', label: 'Oracle', icon: <SiOracle className="w-4 h-4" /> },
+            { id: 'oracle', label: 'Oracle', icon: <Database className="w-4 h-4" /> },
           ].map((cat) => (
             <button
               key={cat.id}
