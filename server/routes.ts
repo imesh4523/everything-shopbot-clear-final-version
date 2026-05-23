@@ -1779,6 +1779,21 @@ app.put("/api/aws/accounts/:id", isAuth, async (req, res) => {
   }
 });
 
+app.delete("/api/aws/accounts", isAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Invalid or empty account ids." });
+    }
+    for (const id of ids) {
+      await storage.deleteAwsAccount(Number(id));
+    }
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 app.delete("/api/aws/accounts/:id", isAuth, async (req, res) => {
   try {
     await storage.deleteAwsAccount(Number(req.params.id));

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Dialog, 
   DialogContent, 
@@ -74,6 +75,7 @@ export default function AwsCheckerPage() {
   const [hideNoise, setHideNoise] = useState(false);
   const [focusedAccountId, setFocusedAccountId] = useState<number | null>(null);
   const [timeFilter, setTimeFilter] = useState<"7d" | "14d" | "21d" | "30d" | "all">("all");
+  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
 
   const TIME_FILTER_OPTIONS = [
     { value: "7d",  label: "7 Days" },
@@ -149,6 +151,37 @@ export default function AwsCheckerPage() {
       toast({ title: "Account Removed" });
     },
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await apiRequest("DELETE", "/api/aws/accounts", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/aws/accounts"] });
+      toast({ title: "Selected accounts removed from checker" });
+      setSelectedAccounts([]);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Bulk delete failed",
+        description: err.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleBulkDelete = () => {
+    if (confirm(`Are you sure you want to delete the ${selectedAccounts.length} selected accounts from the AWS checker? This will only remove them from the checker, not from AWS itself.`)) {
+      bulkDeleteMutation.mutate(selectedAccounts);
+    }
+  };
+
+  const toggleAccountSelection = (id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedAccounts(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
   const filteredAccounts = accounts?.filter(acc => {
     const searchLower = search.toLowerCase();
@@ -324,6 +357,44 @@ export default function AwsCheckerPage() {
             )}
           </div>
 
+          {filteredAccounts.length > 0 && (
+            <div className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/5 rounded-xl text-xs font-semibold text-white/50">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={filteredAccounts.length > 0 && selectedAccounts.length === filteredAccounts.length}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedAccounts(filteredAccounts.map(a => a.id));
+                    } else {
+                      setSelectedAccounts([]);
+                    }
+                  }}
+                  id="select-all-accounts"
+                  className="border-white/20 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                />
+                <label htmlFor="select-all-accounts" className="cursor-pointer select-none text-[10px] uppercase font-black tracking-wider text-white/40">
+                  Select All ({filteredAccounts.length})
+                </label>
+              </div>
+              {selectedAccounts.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="h-7 px-3 text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg flex items-center gap-1.5"
+                >
+                  {bulkDeleteMutation.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3 h-3" />
+                  )}
+                  Delete Checked ({selectedAccounts.length})
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
             {isAccountsLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
@@ -341,8 +412,14 @@ export default function AwsCheckerPage() {
                   className={`glass-panel p-5 rounded-2xl border-white/5 transition-all cursor-pointer group hover:bg-white/[0.04] ${focusedAccountId === acc.id ? 'ring-2 ring-purple-500/50 bg-white/[0.05]' : 'bg-white/[0.01]'}`}
                 >
                     <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedAccounts.includes(acc.id)}
+                          onCheckedChange={() => toggleAccountSelection(acc.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="border-white/20 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500 shrink-0"
+                        />
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
                           acc.status === 'suspended' 
                             ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' 
                             : acc.status === 'error'
