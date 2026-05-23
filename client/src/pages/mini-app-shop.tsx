@@ -882,7 +882,6 @@ export default function MiniAppShop() {
             animate={{ rotate: 360 }}
             transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
           >
-            {/* Triangle dots */}
             <motion.div 
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}

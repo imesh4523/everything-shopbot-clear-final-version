@@ -43,24 +43,24 @@
 }
 
 .dark {
-  /* Ultra-Premium Purple Dark Palette */
-  --background: 265 65% 30%;
+  /* Premium Dark Palette */
+  --background: 240 10% 8%;
   --foreground: 0 0% 100%;
 
-  --card: 265 65% 35%;
+  --card: 240 10% 12%;
   --card-foreground: 0 0% 100%;
 
-  --popover: 265 65% 30%;
+  --popover: 240 10% 12%;
   --popover-foreground: 0 0% 100%;
 
   --primary: 275 100% 70%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 265 65% 40%;
+  --secondary: 240 10% 18%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 265 50% 40%;
-  --muted-foreground: 0 0% 90%;
+  --muted: 240 10% 18%;
+  --muted-foreground: 0 0% 70%;
 
   --accent: 275 100% 70%;
   --accent-foreground: 0 0% 100%;
@@ -68,11 +68,11 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 265 65% 45%;
-  --input: 265 65% 45%;
+  --border: 240 10% 22%;
+  --input: 240 10% 22%;
   --ring: 275 100% 70%;
 
-  --bg-gradient: #5b21b6;
+  --bg-gradient: #0d0d12;
 }
 
 @layer base {
@@ -126,5 +126,13 @@
 
 .dark body.tg-body {
   --bg-gradient: #121212 !important;
+  background: #121212 !important;
+}
+
+/* Force mini app body to be neutral, never purple */
+body:has(.tg-mini-app) {
+  background: #ffffff !important;
+}
+.dark body:has(.tg-mini-app) {
   background: #121212 !important;
 }
