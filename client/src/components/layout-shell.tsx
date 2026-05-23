@@ -53,7 +53,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     { name: 'AWS Checker', href: '/aws-checker', icon: ShieldCheck },
     { name: 'DB Backup', href: '/backups', icon: Database },
     { name: 'Users', href: '/users', icon: Users },
-    { name: 'Telegram Client', href: '/telegram-client', icon: Send },
+    { name: 'Telegram AI', href: '/telegram-client', icon: Send },
     { name: 'Auto Forward', href: '/forward', icon: Share2 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];

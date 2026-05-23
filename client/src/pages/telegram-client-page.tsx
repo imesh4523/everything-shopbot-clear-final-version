@@ -237,7 +237,7 @@ export default function TelegramClientPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/telegram-client/chats"] });
       toast({
         title: "Logged In",
-        description: "Telegram Client logged in successfully!",
+        description: "Telegram AI logged in successfully!",
       });
     },
     onError: (err: any) => {
@@ -672,7 +672,7 @@ export default function TelegramClientPage() {
               </div>
 
               <p className="text-sm text-slate-400 leading-relaxed font-medium">
-                Experience your super access now. The Telegram client is connected, and automated shop messages, customer interaction, and AI processes are running smoothly in the background.
+                Experience your super access now. The Telegram AI is connected, and automated shop messages, customer interaction, and AI processes are running smoothly in the background.
               </p>
 
               <div className="w-full pt-4 border-t border-white/5 flex flex-col items-center">
