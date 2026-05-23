@@ -5304,7 +5304,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               const newAttempts = attempts + 1;
               if (newAttempts >= 3) {
                 await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-                await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+                const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+                setTimeout(() => {
+                  targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+                }, 15000);
               } else {
                 await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
               }
@@ -5318,7 +5321,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const newAttempts = attempts + 1;
             if (newAttempts >= 3) {
               await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-              await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              setTimeout(() => {
+                targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+              }, 15000);
             } else {
               await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
             }
@@ -5332,7 +5338,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           const newAttempts = attempts + 1;
           if (newAttempts >= 3) {
             await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-            await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            setTimeout(() => {
+              targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+            }, 15000);
           } else {
             await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_trc20_txid_${payment.id}_${newAttempts}` });
           }
@@ -5481,7 +5490,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               const newAttempts = attempts + 1;
               if (newAttempts >= 3) {
                 await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-                await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+                const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+                setTimeout(() => {
+                  targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+                }, 15000);
               } else {
                 await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
               }
@@ -5495,7 +5507,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
             const newAttempts = attempts + 1;
             if (newAttempts >= 3) {
               await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-              await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+              setTimeout(() => {
+                targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+              }, 15000);
             } else {
               await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
             }
@@ -5509,7 +5524,10 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           const newAttempts = attempts + 1;
           if (newAttempts >= 3) {
             await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: null });
-            await targetBot.sendMessage(chatId, `❌ <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            const warnMsg = await targetBot.sendMessage(chatId, `<tg-emoji emoji-id="6298544405435387645">❌</tg-emoji> <b>Too many failed attempts.</b> Please click "Check payment" again to retry.`, { parse_mode: 'HTML' });
+            setTimeout(() => {
+              targetBot.deleteMessage(chatId, warnMsg.message_id).catch(() => {});
+            }, 15000);
           } else {
             await storage.updateTelegramUserByChatId(chatId.toString(), { lastAction: `awaiting_aptos_txid_${payment.id}_${newAttempts}` });
           }
