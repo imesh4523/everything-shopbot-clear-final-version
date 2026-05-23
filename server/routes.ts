@@ -3527,7 +3527,7 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           // Revert processing status to pending so it can be checked
           await storage.updatePayment(payment.id, { status: 'pending' });
 
-          const promptMsgText = `✍️ <b>Enter your Transaction ID (TXID)</b>\n\nOur system will automatically detect your payment. Please copy and paste your TXID / Transaction Hash directly here:`;
+          const promptMsgText = `<tg-emoji emoji-id="5334982154868783692">📝</tg-emoji> <b>Enter your Transaction ID (TXID)</b>\n\nOur system will automatically detect your payment. Please copy and paste your TXID / Transaction Hash directly here:`;
           const promptMsg = await targetBot.sendMessage(chatId, promptMsgText, { parse_mode: 'HTML' });
 
           await storage.updateTelegramUserByChatId(chatId.toString(), {
