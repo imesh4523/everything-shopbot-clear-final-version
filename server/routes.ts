@@ -661,7 +661,7 @@ export async function registerRoutes(
       // Call Gemini API
       console.log(`[AI Chat] Forwarding support chat to Gemini API`);
       const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
         {
           contents: geminiMessages,
           systemInstruction: {
