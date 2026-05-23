@@ -568,51 +568,121 @@ export async function registerRoutes(
 
   /**
    * AI Chat Proxy
-   * Proxies chat messages from the frontend to DigitalOcean Agent Platform.
+   * Proxies support chat messages to the Google AI Studio Gemini API with full shop context.
    */
   app.post("/api/support/chat", async (req, res) => {
-    const { messages } = req.body;
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ message: "messages array required" });
+    const { messages, message } = req.body;
+    
+    let incomingMessages: Array<{ role: string; content: string }> = [];
+    
+    if (messages && Array.isArray(messages)) {
+      incomingMessages = messages;
+    } else if (message && typeof message === 'string') {
+      incomingMessages = [{ role: 'user', content: message }];
+    } else {
+      return res.status(400).json({ message: "messages array or message string required" });
     }
 
-    // Use the correct agent base URL from env or fallback to the configured agent
-    const agentBase = (process.env.DO_AGENT_ENDPOINT || "https://tltf2x6wzq5ssf5yr7655cuu.agents.do-ai.run").replace(/\/$/, "");
-    const agentEndpoint = `${agentBase}/api/v1/chat/completions`;
-
-    // Use DO API key from env, or fall back to the configured agent key
-    const agentKey = process.env.DO_AGENT_KEY || "7--sbBHHxkaTxLSQXb_yjABVK1HVVupJ";
-
     try {
-      console.log(`[AI Chat] Forwarding to: ${agentEndpoint}`);
+      // 1. Retrieve Gemini API Key
+      const geminiApiKeySetting = await storage.getSetting("GEMINI_API_KEY");
+      const apiKey = geminiApiKeySetting?.value || "AIzaSyDkBJAwlqGLcP-w2vyKva8KSha76ans3mg";
+
+      if (!apiKey) {
+        return res.status(400).json({ message: "Gemini API key is not configured." });
+      }
+
+      // 2. Load shop products, special offers, FAQ, and branding for the AI context
+      const allProducts = await storage.getProducts();
+      const allOffers = await storage.getSpecialOffers();
+      const faqSetting = await storage.getSetting("faq_content");
+      const storeNameSetting = await storage.getSetting("STORE_NAME");
+      const supportUsernameSetting = await storage.getSetting("SUPPORT_USERNAME");
+
+      const storeName = storeNameSetting?.value || "ShopBot";
+      const supportUsername = supportUsernameSetting?.value || "@rochana_imesh";
+      const faq = faqSetting?.value || "No special instructions. Direct them to support if needed.";
+
+      const availableProducts = await Promise.all(allProducts.map(async p => {
+        const stock = await storage.getCredentialsByProduct(p.id);
+        const stockCount = stock.filter(s => s.status === 'available').length;
+        return { ...p, stockCount };
+      }));
+      const inStock = availableProducts.filter(p => p.stockCount > 0);
+
+      const activeOffers = allOffers.filter(o => {
+        const isNotExpired = !o.expiresAt || new Date(o.expiresAt) > new Date();
+        return o.status === 'active' && isNotExpired;
+      });
+
+      // Construct system instruction
+      let systemPrompt = `You are the AI Support Concierge (live chat support agent) for our Telegram Mini App store, "${storeName}".\n`;
+      systemPrompt += `Your primary goal is to help users browse available products, check special bundle offers, read FAQs, and assist them in making purchases.\n`;
+      systemPrompt += `Be friendly, helpful, polite, and reply to the user in their language (or default to English). Keep your responses concise and well-structured, suitable for mobile/chat views.\n\n`;
+
+      systemPrompt += `AVAILABLE PRODUCTS / CLOUD ACCOUNTS:\n`;
+      if (inStock.length === 0) {
+        systemPrompt += `- No individual accounts currently in stock.\n`;
+      } else {
+        inStock.forEach(p => {
+          systemPrompt += `- [ID: ${p.id}] ${p.type} | ${p.name}: $${(p.price / 100).toFixed(2)} (In Stock: ${p.stockCount} units)\n`;
+        });
+      }
+      systemPrompt += `\n`;
+
+      systemPrompt += `ACTIVE SPECIAL OFFERS (BUNDLE DEALS):\n`;
+      if (activeOffers.length === 0) {
+        systemPrompt += `- No active special offers at the moment.\n`;
+      } else {
+        activeOffers.forEach(o => {
+          const expiresStr = o.expiresAt ? ` (Expires: ${new Date(o.expiresAt).toLocaleString()})` : "";
+          systemPrompt += `- ${o.name}: Bundle of ${o.bundleQuantity} units of product ID ${o.productId} for $${(o.price / 100).toFixed(2)}${expiresStr}\n`;
+        });
+      }
+      systemPrompt += `\n`;
+
+      systemPrompt += `FAQ SECTION:\n${faq}\n\n`;
+      systemPrompt += `IMPORTANT RULES:\n`;
+      systemPrompt += `1. If a user asks for human assistance or support, tell them to click the support contact button or contact ${supportUsername} on Telegram directly.\n`;
+      systemPrompt += `2. Do not make up product details or prices that are not listed above.\n`;
+      systemPrompt += `3. Maintain developer credit recognition if asked: Developer credits belong to Rochana Imesh.\n`;
+
+      // 3. Map messages history to Gemini format (roles must be 'user' or 'model')
+      const geminiMessages = incomingMessages.map(msg => ({
+        role: msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content || "" }]
+      }));
+
+      // Call Gemini API
+      console.log(`[AI Chat] Forwarding support chat to Gemini API`);
       const response = await axios.post(
-        agentEndpoint,
-        { messages, stream: false },
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          contents: geminiMessages,
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          }
+        },
         {
           headers: {
-            Authorization: `Bearer ${agentKey}`,
             "Content-Type": "application/json",
           },
           timeout: 30000,
         }
       );
 
-      // OpenAI-compatible response format
       const reply =
-        response.data?.choices?.[0]?.message?.content ||
-        response.data?.message ||
-        response.data?.text ||
-        "I couldn't process that request.";
+        response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "I'm sorry, I could not process your request at this moment.";
+
       res.json({ answer: reply });
     } catch (err: any) {
-      console.error("❌ AI Chat Proxy Error:");
+      console.error("❌ Gemini API Chat Error:", err.message);
       if (err.response) {
         console.error("Status:", err.response.status);
         console.error("Data:", JSON.stringify(err.response.data));
-      } else {
-        console.error("Message:", err.message);
       }
-      res.status(500).json({ message: "AI Agent is currently unavailable." });
+      res.status(500).json({ message: "AI Assistant is currently unavailable." });
     }
   });
 

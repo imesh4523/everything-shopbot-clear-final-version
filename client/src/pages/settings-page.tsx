@@ -12,6 +12,7 @@ import { Bot, Save, Loader2, Sparkles, Lock, Megaphone } from "lucide-react";
 export default function SettingsPage() {
   const { toast } = useToast();
   const [token, setToken] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
   const [broadcastToken, setBroadcastToken] = useState("");
   const [supportContact, setSupportContact] = useState("");
   const [cryptomusApiKey, setCryptomusApiKey] = useState("");
@@ -31,6 +32,10 @@ export default function SettingsPage() {
 
   const { data: setting, isLoading: isTokenLoading } = useQuery<{ key: string, value: string }>({
     queryKey: ["/api/settings/TELEGRAM_BOT_TOKEN"],
+  });
+
+  const { data: geminiSetting, isLoading: isGeminiLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/GEMINI_API_KEY"],
   });
 
   const { data: broadcastSetting, isLoading: isBroadcastLoading } = useQuery<{ key: string, value: string }>({
@@ -136,7 +141,7 @@ export default function SettingsPage() {
     isSpecialOffersEnabledLoading || isStoreNameLoading || isSupportUsernameLoading ||
     isSupportBtnTextLoading || isLoadingTextLoading ||
     isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading ||
-    isTrc20VerificationModeLoading || isAptosVerificationModeLoading;
+    isTrc20VerificationModeLoading || isAptosVerificationModeLoading || isGeminiLoading;
 
   const [binanceEnabled, setBinanceEnabled] = useState(true);
   const [cryptomusEnabled, setCryptomusEnabled] = useState(true);
@@ -192,6 +197,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (setting?.value !== undefined) setToken(setting.value);
   }, [setting]);
+
+  useEffect(() => {
+    if (geminiSetting?.value !== undefined) setGeminiApiKey(geminiSetting.value);
+  }, [geminiSetting]);
 
   useEffect(() => {
     if (broadcastSetting?.value !== undefined) setBroadcastToken(broadcastSetting.value);
@@ -279,6 +288,23 @@ export default function SettingsPage() {
       toast({
         title: "Broadcast Bot Updated",
         description: "Separate broadcast bot token has been saved.",
+      });
+    }
+  });
+
+  const geminiMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "GEMINI_API_KEY",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/GEMINI_API_KEY"] });
+      toast({
+        title: "Gemini API Key Updated",
+        description: "Live support chat bot is now using the updated Gemini API key.",
       });
     }
   });
@@ -630,6 +656,45 @@ export default function SettingsPage() {
               </div>
               <p className="text-xs text-white/40">
                 If provided, this bot will be used for sending broadcasts instead of the main bot.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="max-w-2xl">
+        <Card className="glass-card border-0">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-purple-400" />
+              AI Support Assistant (Gemini)
+            </CardTitle>
+            <CardDescription className="text-white/60">
+              Configure your Google AI Studio Gemini API Key to power the live support chat bot.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="geminiApiKey" className="text-sm font-bold text-white/70 uppercase tracking-widest">Gemini API Key</Label>
+              <div className="flex gap-3">
+                <Input
+                  id="geminiApiKey"
+                  type="password"
+                  placeholder="Paste your Gemini API Key here..."
+                  className="glass-panel border-white/10 bg-purple-950/20 text-white h-12 rounded-xl focus:border-purple-500/50 transition-all"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                />
+                <Button
+                  onClick={() => geminiMutation.mutate(geminiApiKey)}
+                  disabled={geminiMutation.isPending}
+                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 font-bold"
+                >
+                  {geminiMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                </Button>
+              </div>
+              <p className="text-xs text-white/40">
+                Get your API key from the <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">Google AI Studio Dashboard</a>.
               </p>
             </div>
           </CardContent>
