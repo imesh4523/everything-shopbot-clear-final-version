@@ -256,6 +256,8 @@ export async function getChats() {
     if (d.isGroup) type = "group";
     else if (d.isChannel) type = "channel";
 
+    const isBot = d.isUser && d.entity && 'bot' in d.entity ? !!(d.entity as any).bot : false;
+
     return {
       id: d.id ? d.id.toString() : "",
       name,
@@ -265,6 +267,7 @@ export async function getChats() {
       type,
       username: d.entity && 'username' in d.entity ? d.entity.username : null,
       isContact: d.isUser && d.id && contactIds.has(d.id.toString()),
+      isBot,
     };
   });
 }

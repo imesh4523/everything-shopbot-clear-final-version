@@ -26,7 +26,8 @@ import {
   Users,
   Sparkles,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Bot
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -41,6 +42,8 @@ interface Chat {
   date: number;
   type: string; // "user" | "group" | "channel"
   username: string | null;
+  isBot?: boolean;
+  isContact?: boolean;
 }
 
 interface Message {
@@ -71,7 +74,7 @@ export default function TelegramClientPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [activeTab, setActiveTab] = useState<"all" | "groups" | "contacts" | "non-contacts">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "groups" | "contacts" | "non-contacts" | "bots">("all");
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,7 +114,7 @@ export default function TelegramClientPage() {
   const isConnected = statusData?.connected || false;
 
   // 2. Fetch chats list (only if connected)
-  const { data: chats = [], isLoading: isChatsLoading } = useQuery<(Chat & { isContact?: boolean })[]>({
+  const { data: chats = [], isLoading: isChatsLoading } = useQuery<Chat[]>({
     queryKey: ["/api/telegram-client/chats"],
     enabled: isConnected,
     refetchInterval: 30000, // Refresh chat list every 30s
@@ -327,14 +330,16 @@ export default function TelegramClientPage() {
   );
 
   const groupsCount = chats.filter((c) => c.type === "group" || c.type === "channel").length;
-  const contactsCount = chats.filter((c) => c.type === "user" && c.isContact).length;
-  const nonContactsCount = chats.filter((c) => c.type === "user" && !c.isContact).length;
+  const contactsCount = chats.filter((c) => c.type === "user" && c.isContact && !c.isBot).length;
+  const nonContactsCount = chats.filter((c) => c.type === "user" && !c.isContact && !c.isBot).length;
+  const botsCount = chats.filter((c) => c.isBot).length;
 
   const displayedChats = filteredChats.filter((chat) => {
     if (activeTab === "all") return true;
     if (activeTab === "groups") return chat.type === "group" || chat.type === "channel";
-    if (activeTab === "contacts") return chat.type === "user" && chat.isContact;
-    if (activeTab === "non-contacts") return chat.type === "user" && !chat.isContact;
+    if (activeTab === "contacts") return chat.type === "user" && chat.isContact && !chat.isBot;
+    if (activeTab === "non-contacts") return chat.type === "user" && !chat.isContact && !chat.isBot;
+    if (activeTab === "bots") return !!chat.isBot;
     return true;
   });
 
@@ -813,6 +818,22 @@ export default function TelegramClientPage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("bots")}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all flex items-center gap-1.5 ${
+              activeTab === "bots"
+                ? "bg-cyan-600 text-white shadow-md shadow-cyan-950/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+            }`}
+          >
+            <Bot className="h-3 w-3 shrink-0" />
+            Bots
+            {botsCount > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${activeTab === "bots" ? "bg-white/20 text-white" : "bg-slate-800 text-cyan-400"}`}>
+                {botsCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Sidebar List */}
@@ -851,7 +872,8 @@ export default function TelegramClientPage() {
                     <span className="font-semibold text-slate-200 text-sm truncate flex items-center gap-1">
                       {chat.type === "group" && <UsersIcon className="h-3 w-3 text-indigo-400 shrink-0" />}
                       {chat.type === "channel" && <Megaphone className="h-3 w-3 text-cyan-400 shrink-0" />}
-                      {chat.type === "user" && <UserIcon className="h-3 w-3 text-slate-400 shrink-0" />}
+                      {chat.isBot && <Bot className="h-3 w-3 text-cyan-400 shrink-0" />}
+                      {chat.type === "user" && !chat.isBot && <UserIcon className="h-3 w-3 text-slate-400 shrink-0" />}
                       {chat.name}
                     </span>
                     <span className="text-[10px] text-slate-500 shrink-0">
