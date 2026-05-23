@@ -33,7 +33,8 @@ import {
   sendChatMessage, 
   logoutClient, 
   isClientConnected,
-  getPeerDetails
+  getPeerDetails,
+  getTelegramClient
 } from "./telegram-client-service";
 import {
   initForwardService,
@@ -5750,6 +5751,51 @@ BackupService.startBackupScheduler().catch(err => console.error("Backup schedule
       res.json(details);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/telegram-client/profile-photo/:peerId", isAuth, async (req, res) => {
+    const { peerId } = req.params;
+    try {
+      const client = getTelegramClient();
+      if (!client || !client.connected) {
+        return res.status(400).json({ message: "Telegram client not connected" });
+      }
+
+      // Check cache first
+      const cacheDir = path.join(process.cwd(), 'public', 'uploads', 'profile_photos');
+      const cacheFilePath = path.join(cacheDir, `${peerId}.jpg`);
+
+      if (fs.existsSync(cacheFilePath)) {
+        return res.sendFile(cacheFilePath);
+      }
+
+      // Download from Telegram if not cached
+      let peer;
+      try {
+        peer = await client.getInputEntity(peerId);
+      } catch (err) {
+        peer = peerId;
+      }
+
+      const entity = await client.getEntity(peer);
+      const buffer = await client.downloadProfilePhoto(entity);
+      if (!buffer || buffer.length === 0) {
+        return res.status(404).send("No profile photo");
+      }
+
+      // Save to cache directory
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      }
+      fs.writeFileSync(cacheFilePath, buffer);
+
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error("[Profile Photo Error]", err);
+      return res.status(500).send("Failed to load photo");
     }
   });
 

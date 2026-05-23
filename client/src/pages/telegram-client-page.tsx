@@ -78,6 +78,7 @@ export default function TelegramClientPage() {
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [photoErrors, setPhotoErrors] = useState<Record<string, boolean>>({});
 
   const handleAccessRoot = () => {
     const key = prompt("Enter your secret key:");
@@ -323,6 +324,31 @@ export default function TelegramClientPage() {
     let sum = 0;
     for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
     return colors[sum % colors.length];
+  };
+
+  const renderAvatar = (id: string, name: string, sizeClass: string) => {
+    const hasError = photoErrors[id];
+    if (hasError) {
+      return (
+        <div
+          className={`${sizeClass} rounded-full flex items-center justify-center font-bold bg-gradient-to-tr shadow-md shrink-0 ${getAvatarBg(
+            name
+          )}`}
+        >
+          {getAvatarInitials(name)}
+        </div>
+      );
+    }
+    return (
+      <div className={`${sizeClass} rounded-full flex items-center justify-center font-bold bg-slate-800 shadow-md shrink-0 overflow-hidden`}>
+        <img
+          src={`/api/telegram-client/profile-photo/${id}`}
+          alt={name}
+          className="w-full h-full object-cover rounded-full"
+          onError={() => setPhotoErrors((prev) => ({ ...prev, [id]: true }))}
+        />
+      </div>
+    );
   };
 
   const filteredChats = chats.filter((c) =>
@@ -858,13 +884,7 @@ export default function TelegramClientPage() {
                 }`}
               >
                 {/* Avatar */}
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold bg-gradient-to-tr shadow-md shrink-0 ${getAvatarBg(
-                    chat.name
-                  )}`}
-                >
-                  {getAvatarInitials(chat.name)}
-                </div>
+                {renderAvatar(chat.id, chat.name, "w-10 h-10 text-xs")}
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -910,13 +930,7 @@ export default function TelegramClientPage() {
                 className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => setShowDetailsPanel(!showDetailsPanel)}
               >
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold bg-gradient-to-tr shadow-md ${getAvatarBg(
-                    selectedChat.name
-                  )}`}
-                >
-                  {getAvatarInitials(selectedChat.name)}
-                </div>
+                {renderAvatar(selectedChat.id, selectedChat.name, "w-10 h-10 text-xs")}
                 <div>
                   <h2 className="font-semibold text-slate-200 text-sm flex items-center gap-1.5">
                     {selectedChat.name}
@@ -1059,9 +1073,7 @@ export default function TelegramClientPage() {
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* Avatar and Badges */}
                 <div className="flex flex-col items-center text-center space-y-3">
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold bg-gradient-to-tr shadow-lg ${getAvatarBg(peerDetails.firstName || peerDetails.name || "")}`}>
-                    {getAvatarInitials(peerDetails.firstName || peerDetails.name || "")}
-                  </div>
+                  {renderAvatar(peerDetails.id, peerDetails.firstName || peerDetails.name || "", "w-20 h-20 text-2xl")}
                   
                   <div>
                     <h3 className="font-bold text-base text-slate-100">
