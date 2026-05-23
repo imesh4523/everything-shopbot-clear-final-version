@@ -3523,6 +3523,20 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
           return;
         }
 
+        if (payment.paymentMethod === 'trc20' || payment.paymentMethod === 'aptos') {
+          // Revert processing status to pending so it can be checked
+          await storage.updatePayment(payment.id, { status: 'pending' });
+
+          const promptMsgText = `✍️ <b>Enter your Transaction ID (TXID)</b>\n\nOur system will automatically detect your payment. Please copy and paste your TXID / Transaction Hash directly here:`;
+          const promptMsg = await targetBot.sendMessage(chatId, promptMsgText, { parse_mode: 'HTML' });
+
+          await storage.updateTelegramUserByChatId(chatId.toString(), {
+            lastAction: `awaiting_${payment.paymentMethod}_txid_${payment.id}_0`,
+            lastMessageId: promptMsg?.message_id
+          });
+          return;
+        }
+
         // Send "Checking payment..." message in chat
         let checkingMsg: TelegramBot.Message | undefined;
         try {
@@ -3758,7 +3772,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                       if (!u) return { success: false, error: "user_not_found" };
 
                       currentUsed.push(txId);
-                      await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                      if (settingRow) {
+                        await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                      } else {
+                        await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+                      }
 
                       const creditAmountCents = Math.round(actualAmount * 100);
                       await tx.update(telegramUsers).set({
@@ -3851,7 +3869,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                             if (!u) return { success: false, error: "user_not_found" };
 
                             currentUsed.push(txId);
-                            await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                            if (settingRow) {
+                              await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                            } else {
+                              await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+                            }
 
                             const creditAmountCents = Math.round(actualAmount * 100);
                             await tx.update(telegramUsers).set({
@@ -4003,7 +4025,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                       if (!u) return { success: false, error: "user_not_found" };
 
                       currentUsed.push(txId);
-                      await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                      if (settingRow) {
+                        await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                      } else {
+                        await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+                      }
 
                       const creditAmountCents = Math.round(actualAmount * 100);
                       await tx.update(telegramUsers).set({
@@ -4133,7 +4159,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
                           if (!u) return { success: false, error: "user_not_found" };
 
                           currentUsed.push(txId);
-                          await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                          if (settingRow) {
+                            await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+                          } else {
+                            await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+                          }
 
                           const creditAmountCents = Math.round(actualAmount * 100);
                           await tx.update(telegramUsers).set({
@@ -5219,7 +5249,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               if (!u) return { success: false, error: "user_not_found" };
 
               currentUsed.push(txId.toLowerCase());
-              await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+              if (settingRow) {
+                await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+              } else {
+                await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+              }
 
               const creditAmountCents = Math.round(result.actualAmount * 100);
               await tx.update(telegramUsers).set({
@@ -5392,7 +5426,11 @@ const setupBotHandlers = (targetBot: TelegramBot) => {
               if (!u) return { success: false, error: "user_not_found" };
 
               currentUsed.push(txId.toLowerCase());
-              await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+              if (settingRow) {
+                await tx.update(settings).set({ value: JSON.stringify(currentUsed), updatedAt: new Date() }).where(eq(settings.key, 'USED_TXIDS_JSON'));
+              } else {
+                await tx.insert(settings).values({ key: 'USED_TXIDS_JSON', value: JSON.stringify(currentUsed) });
+              }
 
               const creditAmountCents = Math.round(result.actualAmount * 100);
               await tx.update(telegramUsers).set({
