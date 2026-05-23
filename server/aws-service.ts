@@ -113,26 +113,6 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
           if (qRegion === account.region && qCode === "L-34B43A08") {
              console.log(`[AWS-QUOTA-DEBUG] Failed ${qRegion}/${qCode}: ${e.message}`);
           }
-
-          // Check if this error is an authentication / credential / suspension error on the account's primary region
-          const quotaErrorMsg = e.message || String(e);
-          const isQuotaCredsError = quotaErrorMsg.includes('UnrecognizedClientException') || 
-                                    quotaErrorMsg.includes('InvalidClientTokenId') ||
-                                    quotaErrorMsg.includes('AuthFailure') ||
-                                    quotaErrorMsg.includes('Your account is suspended') ||
-                                    quotaErrorMsg.includes('SignatureDoesNotMatch') ||
-                                    quotaErrorMsg.includes('InvalidSignatureException') ||
-                                    quotaErrorMsg.includes('ExpiredToken') ||
-                                    quotaErrorMsg.includes('SubscriptionRequiredException') ||
-                                    quotaErrorMsg.includes('The security token included in the request is invalid') ||
-                                    quotaErrorMsg.includes('InvalidAccessKeyId') ||
-                                    (quotaErrorMsg.includes('AccessDenied') && qRegion === account.region);
-          
-          if (isQuotaCredsError) {
-            errors.push(`AWS Quota check failed: ${quotaErrorMsg}`);
-            found = true; // Break region check loop
-            break; // Break quota code loop
-          }
         }
       }
     }
@@ -140,14 +120,6 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
     console.error(`[AWS-QUOTA] Fatal failure for ${account.name}:`, error);
   }
 
-  // If credentials failed at the quota level, don't proceed to query regions
-  if (errors.length > 0) {
-    await storage.updateAwsAccount(account.id, { 
-      status: 'suspended', 
-      lastError: errors[0]
-    });
-    return { success: false, error: errors[0] };
-  }
 
   let totalEventsFound = 0;
 
@@ -238,29 +210,15 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error: any) {
         const errorMsg = error.message || String(error);
+        const isNotEnabledOrAccess = errorMsg.includes('is not enabled') || 
+                                     errorMsg.includes('AccessDenied') ||
+                                     errorMsg.includes('UnrecognizedClientException') ||
+                                     errorMsg.includes('The security token included in the request is invalid');
         
-        // Define suspension conditions
-        const isSuspended = errorMsg.includes('UnrecognizedClientException') || 
-                            errorMsg.includes('InvalidClientTokenId') ||
-                            errorMsg.includes('AuthFailure') ||
-                            errorMsg.includes('Your account is suspended') ||
-                            errorMsg.includes('SignatureDoesNotMatch') ||
-                            errorMsg.includes('InvalidSignatureException') ||
-                            errorMsg.includes('ExpiredToken') ||
-                            errorMsg.includes('SubscriptionRequiredException') ||
-                            errorMsg.includes('The security token included in the request is invalid') ||
-                            errorMsg.includes('InvalidAccessKeyId') ||
-                            (errorMsg.includes('AccessDenied') && (region === account.region || region === 'us-east-1'));
-
-        const isNotEnabled = errorMsg.includes('is not enabled') || 
-                             errorMsg.includes('AccessDenied');
-        
-        if (isSuspended) {
-          errors.push(`Account suspended or invalid credentials: ${errorMsg}`);
-        } else if (errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONN') || errorMsg.includes('timeout')) {
+        if (errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONN') || errorMsg.includes('timeout')) {
           console.warn(`Network timeout in ${region}, skipping without marking error.`);
-        } else if (isNotEnabled) {
-          console.warn(`Region ${region} is likely not enabled for this account, skipping.`);
+        } else if (isNotEnabledOrAccess) {
+          console.warn(`Region ${region} is likely not enabled or has restricted access, skipping.`);
         } else {
           console.warn(`Warning fetching for ${account.name} in ${region}: ${errorMsg}`);
         }
@@ -269,30 +227,22 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
     }
   }
 
-  if (errors.length > 0) {
-    await storage.updateAwsAccount(account.id, { 
-      status: 'suspended', 
-      lastError: errors[0] // Just show the first major error
-    });
-    return { success: false, error: errors[0] };
-  } else {
-    const updateData: any = {
-      lastChecked: new Date(),
-      status: 'active',
-      lastError: null
-    };
+  const updateData: any = {
+    lastChecked: new Date(),
+    status: 'active',
+    lastError: null,
+    spotVcpu: spotVcpu
+  };
 
-    if (spotVcpu !== null) {
-      updateData.spotVcpu = spotVcpu;
-      // Capture initial vCPU if not already set
-      if (account.initialVcpu === null || account.initialVcpu === undefined) {
-        updateData.initialVcpu = spotVcpu;
-      }
+  if (spotVcpu !== null) {
+    // Capture initial vCPU if not already set
+    if (account.initialVcpu === null || account.initialVcpu === undefined) {
+      updateData.initialVcpu = spotVcpu;
     }
-
-    await storage.updateAwsAccount(account.id, { ...updateData });
-    return { success: true, count: totalEventsFound };
   }
+
+  await storage.updateAwsAccount(account.id, { ...updateData });
+  return { success: true, count: totalEventsFound };
 }
 
 // Background Sync Service
