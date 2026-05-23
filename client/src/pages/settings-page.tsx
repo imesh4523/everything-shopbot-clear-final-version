@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [token, setToken] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [extraInstructionsText, setExtraInstructionsText] = useState("");
   const [broadcastToken, setBroadcastToken] = useState("");
   const [supportContact, setSupportContact] = useState("");
   const [cryptomusApiKey, setCryptomusApiKey] = useState("");
@@ -36,6 +37,10 @@ export default function SettingsPage() {
 
   const { data: geminiSetting, isLoading: isGeminiLoading } = useQuery<{ key: string, value: string }>({
     queryKey: ["/api/settings/GEMINI_API_KEY"],
+  });
+
+  const { data: extraInstructionsSetting, isLoading: isExtraInstructionsLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/EXTRA_INSTRUCTIONS"],
   });
 
   const { data: broadcastSetting, isLoading: isBroadcastLoading } = useQuery<{ key: string, value: string }>({
@@ -141,7 +146,8 @@ export default function SettingsPage() {
     isSpecialOffersEnabledLoading || isStoreNameLoading || isSupportUsernameLoading ||
     isSupportBtnTextLoading || isLoadingTextLoading ||
     isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading ||
-    isTrc20VerificationModeLoading || isAptosVerificationModeLoading || isGeminiLoading;
+    isTrc20VerificationModeLoading || isAptosVerificationModeLoading || isGeminiLoading ||
+    isExtraInstructionsLoading;
 
   const [binanceEnabled, setBinanceEnabled] = useState(true);
   const [cryptomusEnabled, setCryptomusEnabled] = useState(true);
@@ -201,6 +207,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (geminiSetting?.value !== undefined) setGeminiApiKey(geminiSetting.value);
   }, [geminiSetting]);
+
+  useEffect(() => {
+    if (extraInstructionsSetting?.value !== undefined) setExtraInstructionsText(extraInstructionsSetting.value);
+  }, [extraInstructionsSetting]);
 
   useEffect(() => {
     if (broadcastSetting?.value !== undefined) setBroadcastToken(broadcastSetting.value);
@@ -305,6 +315,23 @@ export default function SettingsPage() {
       toast({
         title: "Gemini API Key Updated",
         description: "Live support chat bot is now using the updated Gemini API key.",
+      });
+    }
+  });
+
+  const extraInstructionsMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "EXTRA_INSTRUCTIONS",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/EXTRA_INSTRUCTIONS"] });
+      toast({
+        title: "Extra Instructions Updated",
+        description: "Extra instructions & rules have been updated.",
       });
     }
   });
@@ -696,6 +723,63 @@ export default function SettingsPage() {
               <p className="text-xs text-white/40">
                 Get your API key from the <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">Google AI Studio Dashboard</a>.
               </p>
+            </div>
+
+            <div className="h-px bg-white/5 my-6" />
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">Extra Instructions & Rules</Label>
+                <CardDescription className="text-white/40">
+                  Upload a text file (.txt) or write custom guidelines to guide the AI chatbot's behavior.
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="file"
+                    accept=".txt"
+                    className="glass-panel border-white/10 bg-purple-950/20 text-white h-12 rounded-xl focus:border-purple-500/50 transition-all cursor-pointer file:bg-purple-600/30 file:text-white file:border-0 file:h-full file:px-4 file:-ml-3 file:mr-3 file:hover:bg-purple-600/50 file:transition-all"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const text = event.target?.result as string;
+                        if (text !== undefined) {
+                          setExtraInstructionsText(text);
+                          toast({
+                            title: "File Loaded",
+                            description: `Successfully loaded content from "${file.name}". Click 'Save Instructions & Rules' below to apply.`,
+                          });
+                        }
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </div>
+
+                <Textarea
+                  placeholder="Enter extra instructions, store guidelines, custom product rules, or restrictions for the AI bot..."
+                  className="glass-panel border-white/10 bg-purple-950/20 text-white min-h-[150px] rounded-xl focus:border-purple-500/50 transition-all"
+                  value={extraInstructionsText}
+                  onChange={(e) => setExtraInstructionsText(e.target.value)}
+                />
+
+                <Button
+                  onClick={() => extraInstructionsMutation.mutate(extraInstructionsText)}
+                  disabled={extraInstructionsMutation.isPending}
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 font-bold"
+                >
+                  {extraInstructionsMutation.isPending ? (
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  ) : (
+                    <Save className="w-5 h-5 mr-2" />
+                  )}
+                  Save Instructions & Rules
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -586,10 +586,10 @@ export async function registerRoutes(
     try {
       // 1. Retrieve Gemini API Key
       const geminiApiKeySetting = await storage.getSetting("GEMINI_API_KEY");
-      const apiKey = geminiApiKeySetting?.value || "AIzaSyDkBJAwlqGLcP-w2vyKva8KSha76ans3mg";
+      const apiKey = geminiApiKeySetting?.value || "";
 
       if (!apiKey) {
-        return res.status(400).json({ message: "Gemini API key is not configured." });
+        return res.json({ answer: "⚠️ Live support assistant is temporarily offline. Please configure your Google AI Studio Gemini API Key in the admin settings dashboard to enable live chat support." });
       }
 
       // 2. Load shop products, special offers, FAQ, and branding for the AI context
@@ -598,10 +598,12 @@ export async function registerRoutes(
       const faqSetting = await storage.getSetting("faq_content");
       const storeNameSetting = await storage.getSetting("STORE_NAME");
       const supportUsernameSetting = await storage.getSetting("SUPPORT_USERNAME");
+      const extraInstructionsSetting = await storage.getSetting("EXTRA_INSTRUCTIONS");
 
       const storeName = storeNameSetting?.value || "ShopBot";
       const supportUsername = supportUsernameSetting?.value || "@rochana_imesh";
       const faq = faqSetting?.value || "No special instructions. Direct them to support if needed.";
+      const extraInstructions = extraInstructionsSetting?.value || "";
 
       const availableProducts = await Promise.all(allProducts.map(async p => {
         const stock = await storage.getCredentialsByProduct(p.id);
@@ -642,6 +644,9 @@ export async function registerRoutes(
       systemPrompt += `\n`;
 
       systemPrompt += `FAQ SECTION:\n${faq}\n\n`;
+      if (extraInstructions) {
+        systemPrompt += `EXTRA INSTRUCTIONS & RULES:\n${extraInstructions}\n\n`;
+      }
       systemPrompt += `IMPORTANT RULES:\n`;
       systemPrompt += `1. If a user asks for human assistance or support, tell them to click the support contact button or contact ${supportUsername} on Telegram directly.\n`;
       systemPrompt += `2. Do not make up product details or prices that are not listed above.\n`;
@@ -682,7 +687,7 @@ export async function registerRoutes(
         console.error("Status:", err.response.status);
         console.error("Data:", JSON.stringify(err.response.data));
       }
-      res.status(500).json({ message: "AI Assistant is currently unavailable." });
+      res.json({ answer: "⚠️ Live support assistant is temporarily unavailable. Please make sure the Gemini API Key is correctly configured in your Settings." });
     }
   });
 
