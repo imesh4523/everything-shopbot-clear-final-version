@@ -39,13 +39,20 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
     // If we get here, credentials are valid → account is active
   } catch (stsErr: any) {
     const stsMsg = stsErr.message || String(stsErr);
-    const isSuspended =
+    
+    // Explicitly check if the account is suspended by AWS
+    const isSuspended = 
+      stsMsg.toLowerCase().includes("suspended") ||
+      stsMsg.toLowerCase().includes("subscriptionrequired") ||
+      stsMsg.toLowerCase().includes("optinrequired");
+
+    // Check if the credentials themselves are invalid or access is denied
+    const isCredentialError = 
       stsMsg.includes("InvalidClientTokenId") ||
       stsMsg.includes("The security token included in the request is invalid") ||
       stsMsg.includes("UnrecognizedClientException") ||
       stsMsg.includes("AuthFailure") ||
       stsMsg.includes("InvalidAccessKeyId") ||
-      stsMsg.includes("Your account is suspended") ||
       stsMsg.includes("ExpiredToken") ||
       stsMsg.includes("SignatureDoesNotMatch") ||
       stsMsg.includes("NotAuthorized") ||
@@ -54,11 +61,21 @@ export async function fetchActivity(account: any, lookbackDays: number = 1) {
     if (isSuspended) {
       await storage.updateAwsAccount(account.id, {
         status: "suspended",
+        lastError: `Account suspended check: ${stsMsg}`,
+        lastChecked: new Date(),
+        spotVcpu: 0, // Suspended accounts have no live capacity
+      });
+      return { success: false, error: stsMsg };
+    } else if (isCredentialError) {
+      await storage.updateAwsAccount(account.id, {
+        status: "error",
         lastError: `Credential check failed: ${stsMsg}`,
         lastChecked: new Date(),
+        spotVcpu: 0, // Invalid credentials mean no live capacity can be accessed
       });
       return { success: false, error: stsMsg };
     }
+
     // Network/other non-auth error — don't change status, just log
     console.warn(`[AWS-STS] Non-auth error for ${account.name}: ${stsMsg}`);
   }

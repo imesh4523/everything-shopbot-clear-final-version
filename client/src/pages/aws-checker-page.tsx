@@ -342,12 +342,27 @@ export default function AwsCheckerPage() {
                 >
                     <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${acc.status === 'suspended' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'}`} />
+                        <div className={`w-2 h-2 rounded-full ${
+                          acc.status === 'suspended' 
+                            ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' 
+                            : acc.status === 'error'
+                            ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                            : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
+                        }`} />
                         <span className="text-sm font-black text-white tracking-tight">{acc.email || acc.name}</span>
-                        <Badge variant="outline" className={`ml-2 text-[8px] h-4 uppercase tracking-tighter font-black ${acc.status === 'suspended' ? 'border-red-500/50 text-red-500 bg-red-500/10' : 'border-green-500/50 text-green-500 bg-green-500/10'}`}>
-                          {acc.status === 'suspended' ? 'Suspended' : 'Active'}
+                        <Badge 
+                          variant="outline" 
+                          className={`ml-2 text-[8px] h-4 uppercase tracking-tighter font-black ${
+                            acc.status === 'suspended' 
+                              ? 'border-red-500/50 text-red-500 bg-red-500/10' 
+                              : acc.status === 'error'
+                              ? 'border-amber-500/50 text-amber-500 bg-amber-500/10'
+                              : 'border-green-500/50 text-green-500 bg-green-500/10'
+                          }`}
+                        >
+                          {acc.status === 'suspended' ? 'Suspended' : acc.status === 'error' ? 'Error' : 'Active'}
                         </Badge>
-                     </div>
+                      </div>
                     {acc.email && (
                       <p className="text-[10px] text-white/30 font-bold tracking-wider mb-2 uppercase truncate max-w-[150px] ml-4">
                         {acc.name}
@@ -386,7 +401,7 @@ export default function AwsCheckerPage() {
                         <span className="text-xs font-black text-purple-500">{(acc as any).spotVcpu ?? "N/A"} vCPU</span>
                       </div>
                     </div>
-                    {acc.lastError && acc.status === 'suspended' && (
+                    {acc.lastError && (acc.status === 'suspended' || acc.status === 'error') && (
                       <div className="flex items-start gap-2 text-red-400/80 mt-2 bg-red-500/5 p-2 rounded-lg">
                         <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
                         <span className="leading-tight">{acc.lastError}</span>
