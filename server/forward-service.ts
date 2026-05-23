@@ -1,7 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
 import { storage } from "./storage";
 import { Server as SocketServer } from "socket.io";
-import { log } from "./index";
+import { log } from "./log";
+import { getTelegramClient, isClientConnected } from "./telegram-client-service";
 
 let forwardBot: TelegramBot | null = null;
 let forwardInterval: NodeJS.Timeout | null = null;
@@ -174,21 +175,45 @@ async function performForwardJob() {
 
   log(`Running forward job. Source: ${fromChatId} message ${messageId} to ${groups.length} groups.`, "telegram-forward");
 
-  if (!forwardBot) {
-    log("Forward job running but forwardBot is null.", "telegram-forward");
-    return;
-  }
-
+  const client = isClientConnected() ? getTelegramClient() : null;
   const updatedGroups = [...groups];
 
   for (const group of updatedGroups) {
-    try {
-      await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
+    let success = false;
+    let errorMsg = "";
+
+    // 1. Try MTProto user client forwarding first if available
+    if (client) {
+      try {
+        await client.forwardMessages(group.groupId, {
+          messages: [messageId],
+          fromPeer: fromChatId,
+        });
+        success = true;
+        log(`Successfully forwarded post to group ${group.groupName} via Telegram client`, "telegram-forward");
+      } catch (err: any) {
+        errorMsg = `Telegram client: ${err.message || err}`;
+        log(`Failed to forward via Telegram client to group ${group.groupName}: ${err.message || err}`, "telegram-forward");
+      }
+    }
+
+    // 2. Fall back to Bot forwarding if MTProto not available or failed
+    if (!success && forwardBot) {
+      try {
+        await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
+        success = true;
+        log(`Successfully forwarded post to group ${group.groupName} via Bot`, "telegram-forward");
+      } catch (err: any) {
+        errorMsg = `Bot: ${err.message || err}`;
+        log(`Failed to forward via Bot to group ${group.groupName}: ${err.message || err}`, "telegram-forward");
+      }
+    }
+
+    if (success) {
       group.sentCount += 1;
       group.lastSentAt = new Date().toISOString();
-      log(`Successfully forwarded post to group: ${group.groupName}`, "telegram-forward");
-    } catch (err: any) {
-      log(`Failed to forward to group ${group.groupName}: ${err.message}`, "telegram-forward");
+    } else {
+      log(`Total forward failure for group ${group.groupName}: ${errorMsg}`, "telegram-forward");
     }
   }
 
@@ -216,8 +241,10 @@ export async function testForwardMessage(): Promise<{ success: boolean; totalGro
     throw new Error("No target groups detected. Add the bot to your groups first.");
   }
 
-  if (!forwardBot) {
-    throw new Error("Forward bot is not initialized. Please configure a valid Bot Token first.");
+  const client = isClientConnected() ? getTelegramClient() : null;
+
+  if (!forwardBot && !client) {
+    throw new Error("Neither the Forward Bot nor the Telegram Client is configured/connected. Please set up a Bot Token or connect a client session first.");
   }
 
   const updatedGroups = [...groups];
@@ -225,15 +252,43 @@ export async function testForwardMessage(): Promise<{ success: boolean; totalGro
   const errors: string[] = [];
 
   for (const group of updatedGroups) {
-    try {
-      await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
+    let success = false;
+    let errorMsg = "";
+
+    // 1. Try MTProto user client forwarding first if available
+    if (client) {
+      try {
+        await client.forwardMessages(group.groupId, {
+          messages: [messageId],
+          fromPeer: fromChatId,
+        });
+        success = true;
+        sentCount++;
+        log(`[TEST] Successfully forwarded post to group ${group.groupName} via Telegram client`, "telegram-forward");
+      } catch (err: any) {
+        errorMsg = `Telegram client: ${err.message || err}`;
+        log(`[TEST] Telegram client forward failed to group ${group.groupName}: ${err.message || err}`, "telegram-forward");
+      }
+    }
+
+    // 2. Fallback to Bot forwarding
+    if (!success && forwardBot) {
+      try {
+        await forwardBot.forwardMessage(group.groupId, fromChatId, messageId);
+        success = true;
+        sentCount++;
+        log(`[TEST] Successfully forwarded post to group ${group.groupName} via Bot`, "telegram-forward");
+      } catch (err: any) {
+        errorMsg = `Bot: ${err.message || err}`;
+        log(`[TEST] Bot forward failed to group ${group.groupName}: ${err.message || err}`, "telegram-forward");
+      }
+    }
+
+    if (success) {
       group.sentCount += 1;
       group.lastSentAt = new Date().toISOString();
-      sentCount++;
-      log(`[TEST] Successfully forwarded post to group: ${group.groupName}`, "telegram-forward");
-    } catch (err: any) {
-      errors.push(`${group.groupName}: ${err.message}`);
-      log(`[TEST] Failed to forward to group ${group.groupName}: ${err.message}`, "telegram-forward");
+    } else {
+      errors.push(`${group.groupName}: ${errorMsg}`);
     }
   }
 

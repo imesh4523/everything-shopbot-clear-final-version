@@ -4,7 +4,7 @@ import { NewMessage } from "telegram/events";
 import { Api } from "telegram";
 import { storage } from "./storage";
 import { Server as SocketServer } from "socket.io";
-import { log } from "./index";
+import { log } from "./log";
 
 let client: TelegramClient | null = null;
 let ioInstance: SocketServer | null = null;
@@ -446,4 +446,9 @@ export async function getPeerDetails(peerId: string) {
     };
   }
 }
+
+export function getTelegramClient() {
+  return client;
+}
+
 
