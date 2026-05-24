@@ -2,23 +2,23 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AwsAccount, AwsActivity, InsertAwsAccount } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
@@ -30,15 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Search, 
-  Plus, 
-  RefreshCw, 
-  Trash2, 
-  Edit2, 
-  Key, 
-  ShieldCheck, 
-  FileText, 
+import {
+  Search,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Edit2,
+  Key,
+  ShieldCheck,
+  FileText,
   Loader2,
   AlertCircle,
   Clock,
@@ -78,7 +78,7 @@ export default function AwsCheckerPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
 
   const TIME_FILTER_OPTIONS = [
-    { value: "7d",  label: "7 Days" },
+    { value: "7d", label: "7 Days" },
     { value: "14d", label: "2 Weeks" },
     { value: "21d", label: "3 Weeks" },
     { value: "30d", label: "1 Month" },
@@ -93,9 +93,9 @@ export default function AwsCheckerPage() {
 
   const getEventCategory = (name: string) => {
     const critical = [
-      "ChangePassword", "DeleteVirtualMFADevice", "DeactivateMFADevice", "DeleteUser", 
-      "DeleteAccessKey", "StopInstances", "TerminateInstances", "DeleteBucket", 
-      "DeleteDBInstance", "UpdateUser", "UpdateLoginProfile", "CreateLoginProfile", 
+      "ChangePassword", "DeleteVirtualMFADevice", "DeactivateMFADevice", "DeleteUser",
+      "DeleteAccessKey", "StopInstances", "TerminateInstances", "DeleteBucket",
+      "DeleteDBInstance", "UpdateUser", "UpdateLoginProfile", "CreateLoginProfile",
       "DeleteLoginProfile", "ResyncMFADevice", "UpdateMFADevice", "UpdateAccessKey",
       "ConsoleLogin", "EnableMFADevice", "CreateAccessKey", "AttachUserPolicy", "PutUserPolicy"
     ];
@@ -103,11 +103,11 @@ export default function AwsCheckerPage() {
       "CreateInstance", "CreateBucket", "ModifyAccount", "CreateVirtualMFADevice"
     ];
     const noise = [
-      "ListManagedNotificationEvents", "LookupEvents", "GetAccountPlanState", 
+      "ListManagedNotificationEvents", "LookupEvents", "GetAccountPlanState",
       "GetServiceLastAccessedDetailsWithEntities", "GetServiceQuota", "ListServiceQuotas",
       "GetAccountQuota", "GetEventSelectors", "ListTags", "DescribeInstances"
     ];
-    
+
     if (critical.includes(name)) return "critical";
     if (sensitive.includes(name)) return "sensitive";
     if (noise.includes(name)) return "noise";
@@ -122,8 +122,8 @@ export default function AwsCheckerPage() {
     queryKey: focusedAccountId ? ["/api/aws/activities", { accountId: focusedAccountId }] : ["/api/aws/activities"],
     queryFn: async ({ queryKey }) => {
       const [_base, params] = queryKey as [string, { accountId?: number }?];
-      const url = params?.accountId 
-        ? `/api/aws/activities?accountId=${params.accountId}` 
+      const url = params?.accountId
+        ? `/api/aws/activities?accountId=${params.accountId}`
         : "/api/aws/activities";
       const res = await apiRequest("GET", url);
       return res.json();
@@ -185,23 +185,23 @@ export default function AwsCheckerPage() {
 
   const filteredAccounts = accounts?.filter(acc => {
     const searchLower = search.toLowerCase();
-    const matchesSearch = acc.name.toLowerCase().includes(searchLower) || 
-                         (acc.email?.toLowerCase().includes(searchLower) ?? false);
+    const matchesSearch = acc.name.toLowerCase().includes(searchLower) ||
+      (acc.email?.toLowerCase().includes(searchLower) ?? false);
     return matchesSearch;
   }) || [];
 
   const filteredActivities = activities?.filter(act => {
     const searchLower = search.toLowerCase();
-    
+
     // Check if search matches activity fields
-    const matchesActivityContent = 
-      act.eventName.toLowerCase().includes(searchLower) || 
+    const matchesActivityContent =
+      act.eventName.toLowerCase().includes(searchLower) ||
       act.userName?.toLowerCase().includes(searchLower) ||
       act.ipAddress.includes(searchLower);
 
     // Check if search matches the account this activity belongs to
     const actAccount = accounts?.find(a => a.id === act.awsAccountId);
-    const matchesAccountIdentity = 
+    const matchesAccountIdentity =
       actAccount?.name.toLowerCase().includes(searchLower) ||
       (actAccount?.email?.toLowerCase().includes(searchLower) ?? false);
 
@@ -212,12 +212,12 @@ export default function AwsCheckerPage() {
     const matchesAccount = focusedAccountId
       ? act.awsAccountId === focusedAccountId
       : filteredAccountIds.includes(act.awsAccountId);
-      
+
     const matchesCritical = criticalOnly ? getEventCategory(act.eventName) === "critical" : true;
     const isNoise = getEventCategory(act.eventName) === "noise";
     const matchesNoise = hideNoise ? !isNoise : true;
     const matchesTime = (Date.now() - new Date(act.eventTime).getTime()) <= getTimeFilterMs();
-    
+
     return matchesSearch && matchesAccount && matchesTime && matchesCritical && matchesNoise;
   }) || [];
 
@@ -226,19 +226,19 @@ export default function AwsCheckerPage() {
     const account = focusedAccountId ? accounts?.find(a => a.id === focusedAccountId) : null;
     const accountName = account ? (account.email || account.name) : "All Accounts";
     const now = new Date();
-    
+
     // Header
     doc.setFontSize(20);
     doc.setTextColor(40, 40, 40);
     doc.text("AWS Activity Audit Report", 14, 22);
-    
+
     // Sub-header
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.text(`Account: ${accountName}`, 14, 30);
     doc.text(`Generated: ${format(now, "yyyy-MM-dd HH:mm:ss")}`, 14, 35);
     doc.text(`Filter: ${timeFilter} period`, 14, 40);
-    
+
     const tableData = filteredActivities.map(act => [
       format(new Date(act.eventTime), "yyyy-MM-dd HH:mm:ss"),
       act.eventName,
@@ -276,7 +276,7 @@ export default function AwsCheckerPage() {
       act.location || "",
       act.userAgent || ""
     ]);
-    
+
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -300,7 +300,7 @@ export default function AwsCheckerPage() {
           <p className="text-white/40 text-sm font-medium">Verify and track AWS account activities.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
+          <Button
             variant="outline"
             onClick={() => refreshMutation.mutate({ accountIds: filteredAccounts.map(a => a.id), lookbackDays: 7 })}
             disabled={refreshMutation.isPending}
@@ -309,7 +309,7 @@ export default function AwsCheckerPage() {
             {refreshMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Sync (7d)
           </Button>
-          <Button 
+          <Button
             variant="outline"
             onClick={() => refreshMutation.mutate({ accountIds: filteredAccounts.map(a => a.id), lookbackDays: 30 })}
             disabled={refreshMutation.isPending}
@@ -318,17 +318,17 @@ export default function AwsCheckerPage() {
             {refreshMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
             Deep Sync (30d)
           </Button>
-          <AccountDialog 
-            open={isCreateOpen || !!editingAccount} 
+          <AccountDialog
+            open={isCreateOpen || !!editingAccount}
             onOpenChange={(open) => {
               if (!open) {
                 setIsCreateOpen(false);
                 setEditingAccount(null);
               }
-            }} 
+            }}
             editingAccount={editingAccount}
           />
-          <Button 
+          <Button
             onClick={() => setIsCreateOpen(true)}
             className="h-11 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white font-black text-xs uppercase tracking-widest shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
           >
@@ -343,8 +343,8 @@ export default function AwsCheckerPage() {
           <div className="flex items-center gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <Input 
-                placeholder="Search accounts..." 
+              <Input
+                placeholder="Search accounts..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="glass-panel pl-10 h-10 rounded-xl border-white/5 bg-white/[0.02] text-xs text-white placeholder:text-white/10"
@@ -406,40 +406,38 @@ export default function AwsCheckerPage() {
               </div>
             ) : (
               filteredAccounts.map(acc => (
-                <div 
+                <div
                   key={acc.id}
                   onClick={() => setFocusedAccountId(acc.id)}
                   className={`glass-panel p-5 rounded-2xl border-white/5 transition-all cursor-pointer group hover:bg-white/[0.04] ${focusedAccountId === acc.id ? 'ring-2 ring-purple-500/50 bg-white/[0.05]' : 'bg-white/[0.01]'}`}
                 >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={selectedAccounts.includes(acc.id)}
-                          onCheckedChange={() => toggleAccountSelection(acc.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="border-white/20 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500 shrink-0"
-                        />
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${
-                          acc.status === 'suspended' 
-                            ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' 
-                            : acc.status === 'error'
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedAccounts.includes(acc.id)}
+                        onCheckedChange={() => toggleAccountSelection(acc.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="border-white/20 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500 shrink-0"
+                      />
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${acc.status === 'suspended'
+                          ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                          : acc.status === 'error'
                             ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
                             : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
                         }`} />
-                        <span className="text-sm font-black text-white tracking-tight">{acc.email || acc.name}</span>
-                        <Badge 
-                          variant="outline" 
-                          className={`ml-2 text-[8px] h-4 uppercase tracking-tighter font-black ${
-                            acc.status === 'suspended' 
-                              ? 'border-red-500/50 text-red-500 bg-red-500/10' 
-                              : acc.status === 'error'
+                      <span className="text-sm font-black text-white tracking-tight">{acc.email || acc.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={`ml-2 text-[8px] h-4 uppercase tracking-tighter font-black ${acc.status === 'suspended'
+                            ? 'border-red-500/50 text-red-500 bg-red-500/10'
+                            : acc.status === 'error'
                               ? 'border-amber-500/50 text-amber-500 bg-amber-500/10'
                               : 'border-green-500/50 text-green-500 bg-green-500/10'
                           }`}
-                        >
-                          {acc.status === 'suspended' ? 'Suspended' : acc.status === 'error' ? 'Error' : 'Active'}
-                        </Badge>
-                      </div>
+                      >
+                        {acc.status === 'suspended' ? 'Suspended' : acc.status === 'error' ? 'Error' : 'Active'}
+                      </Badge>
+                    </div>
                     {acc.email && (
                       <p className="text-[10px] text-white/30 font-bold tracking-wider mb-2 uppercase truncate max-w-[150px] ml-4">
                         {acc.name}
@@ -449,12 +447,12 @@ export default function AwsCheckerPage() {
                       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-white/10" onClick={(e) => { e.stopPropagation(); setEditingAccount(acc); }}>
                         <Edit2 className="w-3 h-3 text-white/40" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); if(confirm("Delete this account?")) deleteMutation.mutate(acc.id); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this account?")) deleteMutation.mutate(acc.id); }}>
                         <Trash2 className="w-3 h-3 text-red-400/60" />
                       </Button>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1.5 text-[10px] font-medium text-white/40">
                     <div className="flex items-center gap-2">
                       <Globe className="w-3 h-3" /> {acc.region}
@@ -503,18 +501,18 @@ export default function AwsCheckerPage() {
                 </span>
               </h2>
               <div className="flex items-center gap-3 flex-wrap">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCriticalOnly(!criticalOnly)}
                   className={`h-9 px-4 rounded-xl border-white/5 font-black text-[9px] uppercase tracking-widest transition-all ${criticalOnly ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-white/5 text-white/40'}`}
                 >
                   <AlertCircle className={`w-3 h-3 mr-2 ${criticalOnly ? 'text-red-400' : 'text-white/20'}`} />
                   Critical Only
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setHideNoise(!hideNoise)}
                   className={`h-9 px-4 rounded-xl border-white/5 font-black text-[9px] uppercase tracking-widest transition-all ${hideNoise ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-white/5 text-white/40'}`}
                 >
@@ -534,17 +532,17 @@ export default function AwsCheckerPage() {
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={generateCSV}
                     className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10"
                   >
                     CSV
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={generatePDF}
                     className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10"
                   >
@@ -553,7 +551,7 @@ export default function AwsCheckerPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto min-h-[500px]">
               <Table>
                 <TableHeader>
@@ -622,17 +620,17 @@ export default function AwsCheckerPage() {
   );
 }
 
-function AccountDialog({ 
-  open, 
-  onOpenChange, 
-  editingAccount 
-}: { 
-  open: boolean, 
+function AccountDialog({
+  open,
+  onOpenChange,
+  editingAccount
+}: {
+  open: boolean,
   onOpenChange: (open: boolean) => void,
   editingAccount: AwsAccount | null
 }) {
   const { toast } = useToast();
-  
+
   const form = useForm<any>({
     resolver: zodResolver(insertAwsAccountSchema),
     values: editingAccount ? {

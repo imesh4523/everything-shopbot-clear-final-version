@@ -20,12 +20,19 @@ export async function initPushNotifications() {
     console.error('[PUSH] Table creation error:', err);
   }
 
-  const publicKey = "BLi12JZdvdRbULvhPcN-pwedf_t72vUTO4XT-R_AfB58GRSfr_wkB7G-KFffQXFclHxhOQn4Qf-yidRm0o0_Img";
-  const privateKey = "rfNmhj1wxk2Bo4zjk5lY7PeOadLP6ZHbvVooox7qdIY";
-  const subject = "mailto:imeshcheak@gmail.com";
+  let publicKey = (await storage.getSetting('VAPID_PUBLIC_KEY'))?.value;
+  let privateKey = (await storage.getSetting('VAPID_PRIVATE_KEY'))?.value;
+  let subject = (await storage.getSetting('VAPID_SUBJECT'))?.value;
 
-  await storage.setSetting('VAPID_PUBLIC_KEY', publicKey);
-  await storage.setSetting('VAPID_PRIVATE_KEY', privateKey);
+  if (!publicKey || !privateKey || !subject) {
+    if (!publicKey) publicKey = "BLi12JZdvdRbULvhPcN-pwedf_t72vUTO4XT-R_AfB58GRSfr_wkB7G-KFffQXFclHxhOQn4Qf-yidRm0o0_Img";
+    if (!privateKey) privateKey = "rfNmhj1wxk2Bo4zjk5lY7PeOadLP6ZHbvVooox7qdIY";
+    if (!subject) subject = "mailto:imeshcheak@gmail.com";
+
+    await storage.setSetting('VAPID_PUBLIC_KEY', publicKey);
+    await storage.setSetting('VAPID_PRIVATE_KEY', privateKey);
+    await storage.setSetting('VAPID_SUBJECT', subject);
+  }
 
   webpush.setVapidDetails(
     subject,
@@ -33,7 +40,7 @@ export async function initPushNotifications() {
     privateKey
   );
   
-  console.log('[PUSH] Initialized with user-provided VAPID keys');
+  console.log('[PUSH] Initialized with user-configured VAPID keys');
   return { publicKey };
 }
 

@@ -30,6 +30,9 @@ export default function SettingsPage() {
   const [loadingText, setLoadingText] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [vapidPublicKey, setVapidPublicKey] = useState("");
+  const [vapidPrivateKey, setVapidPrivateKey] = useState("");
+  const [vapidSubject, setVapidSubject] = useState("");
 
   const { data: setting, isLoading: isTokenLoading } = useQuery<{ key: string, value: string }>({
     queryKey: ["/api/settings/TELEGRAM_BOT_TOKEN"],
@@ -139,6 +142,18 @@ export default function SettingsPage() {
     queryKey: ["/api/settings/LOADING_TEXT"],
   });
 
+  const { data: vapidPublicSetting, isLoading: isVapidPublicLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/VAPID_PUBLIC_KEY"],
+  });
+
+  const { data: vapidPrivateSetting, isLoading: isVapidPrivateLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/VAPID_PRIVATE_KEY"],
+  });
+
+  const { data: vapidSubjectSetting, isLoading: isVapidSubjectLoading } = useQuery<{ key: string, value: string }>({
+    queryKey: ["/api/settings/VAPID_SUBJECT"],
+  });
+
   const isLoading = isTokenLoading || isBroadcastLoading || isSupportLoading || isCryptomusLoading ||
     isMerchantLoading || isBinanceLoading || isBinanceApiLoading || isBinanceSecretLoading ||
     isFaqLoading || isHowToBuyLoading || isHowToDepositLoading || isBinanceEnabledLoading ||
@@ -147,7 +162,7 @@ export default function SettingsPage() {
     isSupportBtnTextLoading || isLoadingTextLoading ||
     isTrc20EnabledLoading || isAptosEnabledLoading || isTrc20WalletLoading || isAptosWalletLoading ||
     isTrc20VerificationModeLoading || isAptosVerificationModeLoading || isGeminiLoading ||
-    isExtraInstructionsLoading;
+    isExtraInstructionsLoading || isVapidPublicLoading || isVapidPrivateLoading || isVapidSubjectLoading;
 
   const [binanceEnabled, setBinanceEnabled] = useState(true);
   const [cryptomusEnabled, setCryptomusEnabled] = useState(true);
@@ -267,6 +282,18 @@ export default function SettingsPage() {
   useEffect(() => {
     if (loadingTextSetting?.value !== undefined) setLoadingText(loadingTextSetting.value);
   }, [loadingTextSetting]);
+
+  useEffect(() => {
+    if (vapidPublicSetting?.value !== undefined) setVapidPublicKey(vapidPublicSetting.value);
+  }, [vapidPublicSetting]);
+
+  useEffect(() => {
+    if (vapidPrivateSetting?.value !== undefined) setVapidPrivateKey(vapidPrivateSetting.value);
+  }, [vapidPrivateSetting]);
+
+  useEffect(() => {
+    if (vapidSubjectSetting?.value !== undefined) setVapidSubject(vapidSubjectSetting.value);
+  }, [vapidSubjectSetting]);
 
   const mutation = useMutation({
     mutationFn: async (value: string) => {
@@ -602,6 +629,57 @@ export default function SettingsPage() {
         title: "Update Failed",
         description: err.message || "Failed to update admin credentials.",
         variant: "destructive",
+      });
+    }
+  });
+
+  const vapidPublicKeyMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "VAPID_PUBLIC_KEY",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/VAPID_PUBLIC_KEY"] });
+      toast({
+        title: "VAPID Public Key Updated",
+        description: "Browser push notification credentials updated successfully.",
+      });
+    }
+  });
+
+  const vapidPrivateKeyMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "VAPID_PRIVATE_KEY",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/VAPID_PRIVATE_KEY"] });
+      toast({
+        title: "VAPID Private Key Updated",
+        description: "Browser push notification credentials updated successfully.",
+      });
+    }
+  });
+
+  const vapidSubjectMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const res = await apiRequest("POST", "/api/settings", {
+        key: "VAPID_SUBJECT",
+        value
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/VAPID_SUBJECT"] });
+      toast({
+        title: "VAPID Subject Email Updated",
+        description: "Browser push notification contact email updated successfully.",
       });
     }
   });
@@ -1087,6 +1165,89 @@ export default function SettingsPage() {
                 </Button>
               </div>
             )}
+
+            <div className="h-px bg-white/5 my-6" />
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-white/70 uppercase tracking-widest font-black">
+                  VAPID Subject (Email)
+                </Label>
+                <CardDescription className="text-white/40">
+                  Contact email used to register with push service (e.g., mailto:your-email@example.com)
+                </CardDescription>
+              </div>
+              <div className="flex gap-3">
+                <Input
+                  type="text"
+                  placeholder="e.g. mailto:your-email@example.com"
+                  className="glass-panel border-white/10 bg-purple-950/20 text-white h-12 rounded-xl focus:border-purple-500/50 transition-all"
+                  value={vapidSubject}
+                  onChange={(e) => setVapidSubject(e.target.value)}
+                />
+                <Button
+                  onClick={() => vapidSubjectMutation.mutate(vapidSubject)}
+                  disabled={vapidSubjectMutation.isPending}
+                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 font-bold"
+                >
+                  {vapidSubjectMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-white/70 uppercase tracking-widest font-black">
+                  VAPID Public Key
+                </Label>
+                <CardDescription className="text-white/40">
+                  Required for client browser to subscribe to push notification service
+                </CardDescription>
+              </div>
+              <div className="flex gap-3">
+                <Input
+                  type="text"
+                  placeholder="Paste VAPID public key..."
+                  className="glass-panel border-white/10 bg-purple-950/20 text-white h-12 rounded-xl focus:border-purple-500/50 transition-all"
+                  value={vapidPublicKey}
+                  onChange={(e) => setVapidPublicKey(e.target.value)}
+                />
+                <Button
+                  onClick={() => vapidPublicKeyMutation.mutate(vapidPublicKey)}
+                  disabled={vapidPublicKeyMutation.isPending}
+                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 font-bold"
+                >
+                  {vapidPublicKeyMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-white/70 uppercase tracking-widest font-black">
+                  VAPID Private Key
+                </Label>
+                <CardDescription className="text-white/40">
+                  Keep this secure. Used by server to sign sent push notification payloads
+                </CardDescription>
+              </div>
+              <div className="flex gap-3">
+                <Input
+                  type="password"
+                  placeholder="Paste VAPID private key..."
+                  className="glass-panel border-white/10 bg-purple-950/20 text-white h-12 rounded-xl focus:border-purple-500/50 transition-all"
+                  value={vapidPrivateKey}
+                  onChange={(e) => setVapidPrivateKey(e.target.value)}
+                />
+                <Button
+                  onClick={() => vapidPrivateKeyMutation.mutate(vapidPrivateKey)}
+                  disabled={vapidPrivateKeyMutation.isPending}
+                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 font-bold"
+                >
+                  {vapidPrivateKeyMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

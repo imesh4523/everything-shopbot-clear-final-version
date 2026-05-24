@@ -1939,6 +1939,9 @@ app.post("/api/settings", isAuth, async (req, res) => {
     // Re-initialize bot if token changed
     if (key === "TELEGRAM_BOT_TOKEN" || key === "BROADCAST_BOT_TOKEN") {
       await initBot();
+    } else if (key === "VAPID_PUBLIC_KEY" || key === "VAPID_PRIVATE_KEY" || key === "VAPID_SUBJECT") {
+      const { initPushNotifications } = await import("./push-notifications");
+      await initPushNotifications();
     }
 
     res.json(updated);
